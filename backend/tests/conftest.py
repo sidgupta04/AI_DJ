@@ -35,6 +35,15 @@ def library_dir(tmp_path: Path) -> Path:
     return directory
 
 
+@pytest.fixture
+def fast_settings(settings: Settings, library_dir: Path) -> Settings:
+    """Point at a temporary library and shorten the ingestion gates so clips can be seconds long."""
+    ingestion = settings.ingestion.model_copy(
+        update={"min_duration_seconds": 1.0, "validation_seconds": 1.0}
+    )
+    return settings.model_copy(update={"ingestion": ingestion, "audio_library_dir": library_dir})
+
+
 @pytest.fixture(scope="session")
 def postgres_admin_engine() -> Iterator[Engine]:
     """An AUTOCOMMIT engine used only to create and drop throwaway test databases."""
