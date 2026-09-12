@@ -11,6 +11,22 @@ render_cache_dir: ./render_cache # generated mixes and transition excerpts
 log_level: INFO
 log_format: console              # console for humans, json for machine-readable logs
 
+# --- Library ingestion --------------------------------------------------------------------
+ingestion:
+  # Extensions considered audio. Matching is case-insensitive.
+  extensions: [".mp3", ".wav", ".flac", ".m4a", ".aiff", ".aif", ".ogg", ".opus"]
+  # Only this much audio is decoded to prove a file is usable. Full decodes happen during
+  # analysis, so ingestion stays fast on a library of a few hundred files.
+  validation_seconds: 30.0
+  # A silent opening is not a defect: ambient intros and padded exports are common. When the
+  # validation window turns out to be silent, scan up to this much of the file before concluding
+  # there is no audible content anywhere. Generous, because it only runs on that rare fallback.
+  silence_scan_seconds: 600.0
+  # Anything shorter than this is not a mixable track (jingles, artefacts, partial downloads).
+  min_duration_seconds: 30.0
+  # ffprobe/ffmpeg are external processes; a hung one must not stall a library scan.
+  subprocess_timeout_seconds: 120.0
+
 # --- Offline analysis ---------------------------------------------------------------------
 analysis:
   # Bumping version invalidates stored features and requires deliberate reprocessing.
