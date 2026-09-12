@@ -1,0 +1,35 @@
+# Private audio library and generated audio never enter version control.
+# Anchored to the repository root so they cannot match source packages such as
+# backend/autodj/audio.
+/audio/
+/render_cache/
+/analysis_cache/
+*.wav
+*.mp3
+*.flac
+*.aiff
+*.m4a
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node (frontend arrives in M14)
+node_modules/
+dist/
+
+# Editors / OS
+.DS_Store
+*.swp
