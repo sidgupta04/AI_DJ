@@ -1,0 +1,126 @@
+# AutoDJ default configuration.
+#
+# Every value here is a starting hypothesis with a stated reason, not a tuned constant.
+# Overrides: environment variables (AUTODJ_ prefix, nested keys use __), or a .env file.
+# Experiment history for these values lives in docs/parameters.md and docs/experiments.md.
+
+# --- Runtime paths and logging -------------------------------------------------------------
+database_url: postgresql+psycopg://autodj:autodj@localhost:5432/autodj
+audio_library_dir: ./audio       # read-only source library, never committed or modified
+render_cache_dir: ./render_cache # generated mixes and transition excerpts
+log_level: INFO
+log_format: console              # console for humans, json for machine-readable logs
+
+# --- Offline analysis ---------------------------------------------------------------------
+analysis:
+  # Bumping version invalidates stored features and requires deliberate reprocessing.
+  version: 1
+  # 22.05 kHz mono: beat precision is set by the onset-envelope frame rate, not the sample
+  # rate, so this halves analysis cost with no measurable accuracy loss for 4/4 house.
+  sample_rate: 22050
+  # 512 samples at 22.05 kHz = 23.2 ms frames, the standard librosa beat-tracking grid.
+  hop_length: 512
+  # Beats are refined against a 256-sample (11.6 ms) envelope with parabolic interpolation
+  # to recover sub-frame precision for beat alignment.
+  refine_hop_length: 256
+
+# --- Energy ------------------------------------------------------------------------------
+energy:
+  # E(t) = alpha * RMS(t) + (1 - alpha) * onset(t). Weighted toward loudness because RMS is
+  # the more stable signal; treat as an experimental parameter.
+  alpha: 0.6
+  # RMS in dBFS mapped linearly across this window, then clamped: perceptual, and immune to
+  # a single loud frame dominating normalization.
+  rms_floor_db: -60.0
+  rms_ceiling_db: 0.0
+  # Curves are stored at 10 Hz; transitions care about seconds-scale energy, not frames.
+  curve_hz: 10.0
+  # Median resists intro/outro outliers better than the mean; compared in M3.
+  aggregation: median
+  # Robust library-wide scaling so cross-track energy comparison is meaningful.
+  normalization_low_percentile: 5.0
+  normalization_high_percentile: 95.0
+
+# --- Stable rhythmic regions --------------------------------------------------------------
+stable_regions:
+  # 32 beats = 8 bars in 4/4, the same length as the default crossfade.
+  window_beats: 32
+  # 4-beat step keeps candidate windows dense without quadratic scoring cost.
+  step_beats: 4
+  # Steady house sits near 0.01-0.02; 0.06 admits real tempo drift but rejects noise.
+  ibi_cv_max: 0.06
+  ibi_tolerance: 0.05
+  in_tolerance_fraction_min: 0.90
+  # Library-normalized onset floor: rejects rhythmically sparse intros that are steady but
+  # have no usable pulse.
+  onset_strength_floor: 0.35
+  max_regions_per_track: 8
+  # Region score weights; tempo consistency dominates because drift is what breaks a mix.
+  weight_tempo_consistency: 0.5
+  weight_onset_strength: 0.3
+  weight_in_tolerance: 0.2
+
+# --- Candidate retrieval ------------------------------------------------------------------
+retrieval:
+  # Percentage rather than absolute BPM: perceptual tempo tolerance scales with tempo.
+  max_bpm_deviation_pct: 5.0
+  # First relaxation step when no candidate survives the strict filters.
+  relaxed_bpm_deviation_pct: 7.0
+  energy_filter_enabled: true
+  max_energy_delta: 0.25
+  require_stable_region: true
+  allow_repeats: false
+
+# --- Candidate ranking --------------------------------------------------------------------
+ranking:
+  # Chosen priors, not learned weights: tempo > energy >> analysis confidence.
+  # Swept in M8 and checked against human ratings in M12. Must sum to 1.
+  weight_tempo: 0.60
+  weight_energy: 0.35
+  weight_quality: 0.05
+
+# --- Transition planning ------------------------------------------------------------------
+transition:
+  # 8 bars at 124 BPM is about 15.5 s: long enough to beat-match, short enough to stay musical.
+  crossfade_beats: 32
+  # Extra beats required inside usable audio on both sides of a transition.
+  margin_beats: 8
+  # Mix out late in the outgoing track, in early in the incoming track.
+  outgoing_search_fraction: [0.65, 0.95]
+  incoming_search_fraction: [0.0, 0.35]
+  # Pair-cost weights. Must sum to 1.
+  weight_stability: 0.40
+  weight_energy: 0.30
+  weight_stretch: 0.20
+  weight_position: 0.10
+  # Snap the alignment beat to the estimated downbeat phase so bars line up, not just beats.
+  align_on_downbeat: true
+
+# --- Tempo handling -----------------------------------------------------------------------
+tempo:
+  # +/-5% stretch is inaudible-to-benign with Rubber Band; beyond that house loses its feel.
+  min_stretch_ratio: 0.95
+  max_stretch_ratio: 1.05
+  # pedalboard wraps Rubber Band (GPLv3, see docs/licensing.md); backends are swappable.
+  stretch_backend: pedalboard
+
+# --- Rendering ----------------------------------------------------------------------------
+render:
+  sample_rate: 44100
+  channels: 2
+  # Mixes are written as 16-bit PCM WAV: no second lossy encode, plays everywhere.
+  output_bit_depth: 16
+  # Headroom target; the renderer measures peaks and flags anything above this.
+  peak_ceiling_dbfs: -1.0
+
+# --- Session ------------------------------------------------------------------------------
+session:
+  default_length: 6
+  selection_strategy: greedy # random | nearest_bpm | greedy | beam
+
+# --- Evaluation ---------------------------------------------------------------------------
+evaluation:
+  # Seconds of audio kept either side of a transition in exported excerpts.
+  excerpt_seconds: 15.0
+  # 60 paired comparisons make a sign test meaningful for a ~65/35 preference split.
+  pair_count: 60
