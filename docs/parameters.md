@@ -6,6 +6,16 @@ result in `docs/experiments.md` and update the status column.
 
 Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recorded experiment).
 
+## Ingestion
+
+| Parameter | Default | Reason | Status |
+| --- | --- | --- | --- |
+| `ingestion.extensions` | mp3, wav, flac, m4a, aiff, aif, ogg, opus | Everything ffmpeg decodes that a library plausibly contains; matched case-insensitively | hypothesis |
+| `ingestion.validation_seconds` | 30.0 | Long enough to prove a file decodes, short enough to keep scans fast | hypothesis |
+| `ingestion.silence_scan_seconds` | 600.0 | Fallback window when the validation window is silent; only a file silent across this much audio is rejected. Longer than any single track, and it only runs on the rare silent-start file | hypothesis |
+| `ingestion.min_duration_seconds` | 30.0 | Shorter files cannot host a 32-beat crossfade plus margins, so they are rejected at ingest | hypothesis |
+| `ingestion.subprocess_timeout_seconds` | 120.0 | Bounds a hung ffmpeg/ffprobe on a pathological file instead of stalling the scan | hypothesis |
+
 ## Analysis
 
 | Parameter | Default | Reason | Status |
