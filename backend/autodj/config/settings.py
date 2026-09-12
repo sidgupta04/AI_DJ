@@ -39,6 +39,33 @@ def _validate_weight_sum(weights: dict[str, float]) -> None:
         raise ValueError(f"weights ({names}) must sum to 1.0, got {total}")
 
 
+class IngestionSettings(ConfigSection):
+    extensions: tuple[str, ...]
+    validation_seconds: float = Field(gt=0.0)
+    silence_scan_seconds: float = Field(gt=0.0)
+    min_duration_seconds: float = Field(gt=0.0)
+    subprocess_timeout_seconds: float = Field(gt=0.0)
+
+    @model_validator(mode="after")
+    def _extensions_must_be_normalized(self) -> Self:
+        for extension in self.extensions:
+            if not extension.startswith(".") or extension != extension.lower():
+                raise ValueError(f"extension {extension!r} must be lowercase and start with '.'")
+        return self
+
+    @model_validator(mode="after")
+    def _silence_scan_must_widen_the_window(self) -> Self:
+        if self.silence_scan_seconds < self.validation_seconds:
+            raise ValueError(
+                "silence_scan_seconds must be at least validation_seconds, otherwise the silence "
+                "fallback would inspect less audio than the check that triggered it"
+            )
+        return self
+
+    def matches(self, suffix: str) -> bool:
+        return suffix.lower() in self.extensions
+
+
 class AnalysisSettings(ConfigSection):
     version: int = Field(ge=1)
     sample_rate: int = Field(ge=8000)
@@ -210,6 +237,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
     log_format: Literal["console", "json"]
 
+    ingestion: IngestionSettings
     analysis: AnalysisSettings
     energy: EnergySettings
     stable_regions: StableRegionSettings
