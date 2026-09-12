@@ -45,7 +45,10 @@ roadmap is not permission to implement more than one milestone.
   ```
 
 - `autodj.audio` and `autodj.dj` are pure. They take numpy arrays and plain dataclasses and return
-  values. They must not import SQLAlchemy, FastAPI, `autodj.persistence`, or touch the filesystem.
+  values. They must not import SQLAlchemy, FastAPI, or `autodj.persistence`.
+- `autodj.audio.decode` is the one deliberate exception to filesystem purity: decoding needs
+  ffmpeg/ffprobe subprocesses reading real files. Keep that I/O confined to that module so every
+  other `audio` module stays array-in, values-out.
 - Only `autodj.services` composes repositories, pure logic, and rendering.
 - Expensive analysis belongs on the offline path, never on the runtime path.
 

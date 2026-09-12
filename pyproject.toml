@@ -9,6 +9,8 @@ license-files = ["LICENSE"]
 dependencies = [
     "alembic>=1.14",
     "fastapi>=0.115",
+    # Audio is handled as float32 PCM arrays from the decode boundary onwards.
+    "numpy>=2.1",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",
     "pydantic-settings>=2.7",
@@ -37,7 +39,7 @@ packages = ["backend/autodj"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
-pythonpath = ["backend"]
+pythonpath = ["backend", "backend/tests"]
 addopts = "-q"
 
 [tool.ruff]
