@@ -109,10 +109,37 @@ Filenames in a real library are messy (`Drake - Nice For What (Lyrics).mp3`), so
 as a source path first and a name only as a last resort. Embedded tags win when present; otherwise
 the filename stem is sanitized conservatively. See `docs/algorithms.md`.
 
+## Analysis path (M2)
+
+Analysis is the only writer of `tracks.native_bpm`, `tracks.analysis_confidence`,
+`tracks.analysis_version`, and the `track_analysis` table. It reads rows that ingestion has
+already validated, decodes each file once to mono PCM at `analysis.sample_rate`, and runs the
+pure beat tracker in `autodj.audio.beats`.
+
+Queryable tempo and quality stay on `tracks` so later retrieval can filter without loading a
+beat grid. `analysis_confidence` is a heuristic quality score in [0, 1], not a probability
+that the BPM is correct. The grid and the diagnostics that produced those two numbers live on
+`track_analysis` (1:1, cascaded delete): refined timestamps, beat count, the hops and sample
+rate used, median IBI, IBI CV, onset contrast, and which octave of the raw librosa grid was
+kept. The onset envelope is not stored; it is large and regenerable.
+
+Status moves `PENDING` → `PROCESSING` → `COMPLETE` or `FAILED`. `PROCESSING` is committed
+before the decode so a crash mid-file is retried on the next run: the default queue is
+PENDING, PROCESSING, and stale-version COMPLETE. A row left in PROCESSING is selected and
+analysed again without `--reanalyze`. `COMPLETE` rows whose
+`analysis_version` does not match the current config are reprocessed without `--reanalyze`.
+`--reanalyze` also redoes current COMPLETE and FAILED rows. Ingestion of a changed file
+resets the three analysis columns, deletes the `track_analysis` row, and returns the track to
+`PENDING`.
+
+One bad file never stops the batch. Decode failures reuse the M1 `SourceFailure` reasons;
+beat-tracking failures use `AnalysisFailure`; a vanished path is `MISSING_FILE`.
+
 ## Milestone status
 
 - M0 project skeleton — complete
 - M1 audio ingestion — complete
-- M2-M15 — not started
+- M2 BPM and beat-grid analysis — complete
+- M3-M15 — not started
 
 Sections are filled in by the milestone that implements them.

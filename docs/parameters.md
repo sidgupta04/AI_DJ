@@ -20,10 +20,18 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 
 | Parameter | Default | Reason | Status |
 | --- | --- | --- | --- |
-| `analysis.version` | 1 | Feature-format version; bumping it invalidates stored features | hypothesis |
-| `analysis.sample_rate` | 22050 | Beat precision follows the onset-envelope frame rate, not the sample rate, so this halves cost | hypothesis (M2 compares 22.05 vs 44.1 kHz) |
+| `analysis.version` | 1 | Feature-format version; bumping it invalidates stored features. First format; any change to hops, sample rate, octave scoring, refinement or confidence requires a bump and a reprocess | hypothesis |
+| `analysis.sample_rate` | 22050 | Beat precision follows the onset-envelope frame rate. 44.1 kHz halves that frame period and roughly halves timing error, but BPM error is already < 0.3 after refinement at 22.05 kHz; see `docs/experiments.md` | measured |
 | `analysis.hop_length` | 512 | 23.2 ms frames, the standard librosa beat-tracking grid | hypothesis |
 | `analysis.refine_hop_length` | 256 | 11.6 ms envelope for sub-frame beat refinement | hypothesis |
+| `analysis.start_bpm` | 124 | Weak house prior: seeds librosa's tempo estimator and breaks exact octave-score ties. Does not override a better-scoring grid farther from 124 | hypothesis |
+| `analysis.min_bpm` | 80 | Below this, a grid is half-time of a house pulse and is rejected if that is the best-scoring octave | hypothesis |
+| `analysis.max_bpm` | 180 | Above this, a grid is double-time; 4/4 house/techno rarely exceeds this | hypothesis |
+| `analysis.min_beats` | 16 | Four bars; fewer IBIs make CV and median tempo unstable | hypothesis |
+| `analysis.max_ibi_cv` | 0.12 | Whole-track CV gate, looser than `stable_regions.ibi_cv_max` because intros and outros are included. Also the zero-point of `tempo_regularity` | hypothesis |
+| `analysis.min_onset_contrast` | 0.15 | Beats must be stronger than midpoints. In-memory white noise scores ~0.13 | hypothesis |
+| `analysis.min_confidence` | 0.25 | Floor on the heuristic quality score (regularity × contrast), not a probability. Separate gates can both barely pass (resampled noise: product 0.05); click tracks sit above 0.6 | hypothesis |
+| `analysis.refine_search_radius_frames` | 2 | ±2 fine frames is ±23 ms, one coarse frame, well inside a house beat | hypothesis |
 
 ## Energy
 
