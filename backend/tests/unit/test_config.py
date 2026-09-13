@@ -5,12 +5,27 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from autodj.config.settings import RankingSettings, Settings, TransitionSettings, load_settings
+from autodj.config.settings import (
+    AnalysisSettings,
+    RankingSettings,
+    Settings,
+    TransitionSettings,
+    load_settings,
+)
 
 
 def test_documented_defaults_are_loaded(settings: Settings) -> None:
     assert settings.analysis.sample_rate == 22050
     assert settings.analysis.hop_length == 512
+    assert settings.analysis.refine_hop_length == 256
+    assert settings.analysis.start_bpm == pytest.approx(124.0)
+    assert settings.analysis.min_bpm == pytest.approx(80.0)
+    assert settings.analysis.max_bpm == pytest.approx(180.0)
+    assert settings.analysis.min_beats == 16
+    assert settings.analysis.max_ibi_cv == pytest.approx(0.12)
+    assert settings.analysis.min_onset_contrast == pytest.approx(0.15)
+    assert settings.analysis.min_confidence == pytest.approx(0.25)
+    assert settings.analysis.refine_search_radius_frames == 2
     assert settings.render.sample_rate == 44100
     assert settings.render.channels == 2
     assert settings.transition.crossfade_beats == 32
@@ -72,3 +87,17 @@ def test_snapshot_is_json_serializable(settings: Settings) -> None:
 def test_unknown_configuration_keys_are_rejected(settings: Settings) -> None:
     with pytest.raises(ValidationError):
         RankingSettings(**{**settings.ranking.model_dump(), "weight_vibe": 0.1})
+
+
+def test_start_bpm_must_lie_inside_the_analysis_band(settings: Settings) -> None:
+    payload = {**settings.analysis.model_dump(), "start_bpm": 200.0}
+
+    with pytest.raises(ValidationError, match="start_bpm"):
+        AnalysisSettings(**payload)
+
+
+def test_analysis_bpm_bounds_must_be_ordered(settings: Settings) -> None:
+    payload = {**settings.analysis.model_dump(), "min_bpm": 140.0, "max_bpm": 100.0}
+
+    with pytest.raises(ValidationError, match="min_bpm"):
+        AnalysisSettings(**payload)

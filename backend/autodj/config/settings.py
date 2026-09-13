@@ -71,6 +71,14 @@ class AnalysisSettings(ConfigSection):
     sample_rate: int = Field(ge=8000)
     hop_length: int = Field(ge=1)
     refine_hop_length: int = Field(ge=1)
+    start_bpm: float = Field(gt=0.0)
+    min_bpm: float = Field(gt=0.0)
+    max_bpm: float = Field(gt=0.0)
+    min_beats: int = Field(ge=2)
+    max_ibi_cv: float = Field(gt=0.0)
+    min_onset_contrast: Fraction
+    min_confidence: Fraction
+    refine_search_radius_frames: int = Field(ge=1)
 
     @property
     def frame_hz(self) -> float:
@@ -83,9 +91,13 @@ class AnalysisSettings(ConfigSection):
         return self.sample_rate / self.refine_hop_length
 
     @model_validator(mode="after")
-    def _refinement_must_be_finer(self) -> Self:
+    def _analysis_ranges_must_be_ordered(self) -> Self:
         if self.refine_hop_length > self.hop_length:
             raise ValueError("refine_hop_length must not be coarser than hop_length")
+        if self.min_bpm >= self.max_bpm:
+            raise ValueError("min_bpm must be below max_bpm")
+        if not (self.min_bpm <= self.start_bpm <= self.max_bpm):
+            raise ValueError("start_bpm must lie within [min_bpm, max_bpm]")
         return self
 
 

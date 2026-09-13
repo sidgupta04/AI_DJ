@@ -35,5 +35,7 @@ reported alongside the config snapshot that produced the audio.
 
 ## Results
 
-None yet. Results land here as milestones complete, each with the config snapshot and the command
-used to produce them.
+The first recorded result is the M2 analysis sample-rate comparison (synthetic click tracks,
+22.05 kHz vs 44.1 kHz, hop length held at 512). It lives in `docs/experiments.md` because it
+answers a configuration question rather than a transition-quality question. Transition-level
+metrics start when there are transitions.

@@ -57,29 +57,33 @@ def _enum_type_names(database_url: str) -> set[str]:
 def test_migration_applies_reverses_and_reapplies(scratch_database_url: str) -> None:
     _alembic("upgrade", scratch_database_url)
 
-    assert "tracks" in _table_names(scratch_database_url)
+    assert {"tracks", "track_analysis"} <= _table_names(scratch_database_url)
     assert {"analysis_status", "metadata_source"} <= _enum_type_names(scratch_database_url)
 
     _alembic("downgrade", scratch_database_url)
 
     assert "tracks" not in _table_names(scratch_database_url)
+    assert "track_analysis" not in _table_names(scratch_database_url)
     # Enum types must go too, otherwise re-applying fails with "type already exists".
     assert not {"analysis_status", "metadata_source"} & _enum_type_names(scratch_database_url)
 
     _alembic("upgrade", scratch_database_url)
 
-    assert "tracks" in _table_names(scratch_database_url)
+    assert {"tracks", "track_analysis"} <= _table_names(scratch_database_url)
 
 
 def test_schema_matches_the_models(scratch_database_url: str) -> None:
     _alembic("upgrade", scratch_database_url)
     engine = create_engine(scratch_database_url)
     try:
-        columns = {column["name"] for column in inspect(engine).get_columns("tracks")}
+        tracks_columns = {column["name"] for column in inspect(engine).get_columns("tracks")}
+        analysis_columns = {
+            column["name"] for column in inspect(engine).get_columns("track_analysis")
+        }
     finally:
         engine.dispose()
 
-    assert columns == {
+    assert tracks_columns == {
         "id",
         "audio_path",
         "content_hash",
@@ -93,6 +97,24 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         "bit_rate",
         "analysis_status",
         "failure_reason",
+        "native_bpm",
+        "analysis_confidence",
+        "analysis_version",
+        "created_at",
+        "updated_at",
+    }
+    assert analysis_columns == {
+        "id",
+        "track_id",
+        "beat_times",
+        "beat_count",
+        "sample_rate",
+        "hop_length",
+        "refine_hop_length",
+        "median_ibi_seconds",
+        "ibi_cv",
+        "onset_contrast",
+        "tempo_octave_factor",
         "created_at",
         "updated_at",
     }

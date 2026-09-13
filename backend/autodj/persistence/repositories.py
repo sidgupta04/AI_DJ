@@ -10,21 +10,28 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from autodj.audio.beats import BeatAnalysis
 from autodj.audio.decode import SourceMetadata
 from autodj.audio.naming import TrackNaming
-from autodj.persistence.models import AnalysisStatus, Track
+from autodj.persistence.models import AnalysisStatus, Track, TrackAnalysis
 
 
 class TrackRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    def get_by_id(self, track_id: int) -> Track | None:
+        return self._session.get(Track, track_id)
+
     def get_by_path(self, audio_path: str) -> Track | None:
         """The one row for a library-relative path, the only lookup that identifies a track."""
         return self._session.scalar(select(Track).where(Track.audio_path == audio_path))
+
+    def get_analysis(self, track_id: int) -> TrackAnalysis | None:
+        return self._session.scalar(select(TrackAnalysis).where(TrackAnalysis.track_id == track_id))
 
     def list_by_content_hash(self, content_hash: str) -> list[Track]:
         """Every row whose bytes match.
@@ -80,6 +87,7 @@ class TrackRepository:
         track.bit_rate = metadata.bit_rate
         track.analysis_status = AnalysisStatus.PENDING
         track.failure_reason = None
+        self._clear_analysis_fields(track)
 
         self._session.flush()
         return track, created
@@ -109,6 +117,83 @@ class TrackRepository:
         track.metadata_source = naming.source
         track.analysis_status = AnalysisStatus.FAILED
         track.failure_reason = dict(failure)
+        self._clear_analysis_fields(track)
 
         self._session.flush()
         return track, created
+
+    def list_for_analysis(
+        self,
+        *,
+        analysis_version: int,
+        reanalyze: bool = False,
+        audio_path: str | None = None,
+        limit: int | None = None,
+    ) -> list[Track]:
+        """Tracks that should be analysed, in a deterministic path order.
+
+        The default queue is PENDING, PROCESSING (a previous run that died mid-file),
+        and COMPLETE rows whose stored ``analysis_version`` is stale. ``reanalyze``
+        adds current COMPLETE and FAILED rows.
+        """
+        statement = select(Track).order_by(Track.audio_path)
+        if audio_path is not None:
+            statement = statement.where(Track.audio_path == audio_path)
+        elif not reanalyze:
+            statement = statement.where(
+                or_(
+                    Track.analysis_status.in_((AnalysisStatus.PENDING, AnalysisStatus.PROCESSING)),
+                    and_(
+                        Track.analysis_status == AnalysisStatus.COMPLETE,
+                        Track.analysis_version.is_distinct_from(analysis_version),
+                    ),
+                )
+            )
+        if limit is not None:
+            statement = statement.limit(limit)
+        return list(self._session.scalars(statement))
+
+    def mark_processing(self, track: Track) -> None:
+        track.analysis_status = AnalysisStatus.PROCESSING
+
+    def save_analysis(self, track: Track, result: BeatAnalysis, *, version: int) -> TrackAnalysis:
+        track.native_bpm = result.native_bpm
+        track.analysis_confidence = result.confidence
+        track.analysis_version = version
+        track.analysis_status = AnalysisStatus.COMPLETE
+        track.failure_reason = None
+
+        row = self.get_analysis(track.id)
+        if row is None:
+            row = TrackAnalysis(track_id=track.id)
+            self._session.add(row)
+
+        beat_times = [round(float(time), 6) for time in result.beat_times]
+        row.beat_times = beat_times
+        row.beat_count = len(beat_times)
+        row.sample_rate = result.sample_rate
+        row.hop_length = result.hop_length
+        row.refine_hop_length = result.refine_hop_length
+        row.median_ibi_seconds = 60.0 / result.native_bpm
+        row.ibi_cv = result.ibi_cv
+        row.onset_contrast = result.onset_contrast
+        row.tempo_octave_factor = result.tempo_octave_factor
+        self._session.flush()
+        return row
+
+    def save_analysis_failure(self, track: Track, failure: Mapping[str, str]) -> Track:
+        track.analysis_status = AnalysisStatus.FAILED
+        track.failure_reason = dict(failure)
+        self._clear_analysis_fields(track)
+        self._session.flush()
+        return track
+
+    def _clear_analysis_fields(self, track: Track) -> None:
+        track.native_bpm = None
+        track.analysis_confidence = None
+        track.analysis_version = None
+        if track.id is None:
+            return
+        existing = self.get_analysis(track.id)
+        if existing is not None:
+            self._session.delete(existing)

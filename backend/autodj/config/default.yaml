@@ -32,13 +32,40 @@ analysis:
   # Bumping version invalidates stored features and requires deliberate reprocessing.
   version: 1
   # 22.05 kHz mono: beat precision is set by the onset-envelope frame rate, not the sample
-  # rate, so this halves analysis cost with no measurable accuracy loss for 4/4 house.
+  # rate, so this halves analysis cost. Confirmed by the M2 22.05 vs 44.1 kHz experiment.
   sample_rate: 22050
   # 512 samples at 22.05 kHz = 23.2 ms frames, the standard librosa beat-tracking grid.
   hop_length: 512
   # Beats are refined against a 256-sample (11.6 ms) envelope with parabolic interpolation
   # to recover sub-frame precision for beat alignment.
   refine_hop_length: 256
+  # Weak house-tempo prior. Seeds librosa's tempo estimator and breaks exact
+  # octave-score ties (87 vs 174 with equal evidence prefers 87). It does not
+  # override a grid whose onset lock is better, even if that grid is farther
+  # from 124.
+  start_bpm: 124.0
+  # Tempos below this are treated as half-time of a house pulse; the natural tempo is
+  # rejected if that half-time grid scores better than the doubled one.
+  min_bpm: 80.0
+  # Tempos above this are treated as double-time. 4/4 house/techno rarely exceeds this.
+  max_bpm: 180.0
+  # IBI statistics need a few bars; fewer beats than this is not a usable grid.
+  min_beats: 16
+  # Whole-track IBI coefficient of variation above this is not a steady beat grid.
+  # Looser than stable_regions.ibi_cv_max because intros and outros are included.
+  max_ibi_cv: 0.12
+  # Beats must be measurably stronger in the onset envelope than the midpoints between
+  # them. In-memory white noise scores around 0.13; the product gate below catches
+  # resampled noise that just clears this floor.
+  min_onset_contrast: 0.15
+  # Floor on the heuristic quality score (regularity * contrast), not a
+  # probability. Separate gates can both barely pass (44.1 kHz white noise
+  # decoded to 22.05 kHz: contrast 0.16, CV 0.08, product 0.05). Click tracks
+  # sit above 0.6.
+  min_confidence: 0.25
+  # Search +/- this many fine-envelope frames around each coarse beat. 2 frames at
+  # 256/22050 is +/- 23 ms, one coarse frame, well inside a beat at house tempo.
+  refine_search_radius_frames: 2
 
 # --- Energy ------------------------------------------------------------------------------
 energy:
