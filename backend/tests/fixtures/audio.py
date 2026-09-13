@@ -17,6 +17,65 @@ import numpy as np
 DEFAULT_SAMPLE_RATE = 22050
 
 
+def click_track(
+    bpm: float,
+    *,
+    seconds: float = 16.0,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    click_samples: int = 64,
+) -> tuple[np.ndarray, np.ndarray]:
+    """A decaying impulse on every beat, plus the ground-truth beat times."""
+    frame_count = int(seconds * sample_rate)
+    signal = np.zeros(frame_count, dtype=np.float32)
+    interval = 60.0 / bpm
+    beat_times = np.arange(0.0, seconds, interval, dtype=np.float64)
+    click = np.linspace(1.0, 0.0, click_samples, dtype=np.float32)
+    for time in beat_times:
+        start = int(round(time * sample_rate))
+        if start >= frame_count:
+            continue
+        end = min(start + click_samples, frame_count)
+        signal[start:end] = click[: end - start]
+    return signal, beat_times[beat_times < seconds]
+
+
+def write_click_wav(
+    path: Path,
+    *,
+    bpm: float,
+    seconds: float = 16.0,
+    sample_rate: int = 44100,
+) -> tuple[Path, np.ndarray]:
+    signal, beat_times = click_track(bpm, seconds=seconds, sample_rate=sample_rate)
+    pcm = np.clip(signal * 32767.0, -32768, 32767).astype("<i2")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(pcm.tobytes())
+    return path, beat_times
+
+
+def write_noise_wav(
+    path: Path,
+    *,
+    seconds: float = 16.0,
+    sample_rate: int = 44100,
+    seed: int = 0,
+) -> Path:
+    generator = np.random.default_rng(seed)
+    signal = (0.3 * generator.standard_normal(int(seconds * sample_rate))).astype(np.float32)
+    pcm = np.clip(signal * 32767.0, -32768, 32767).astype("<i2")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(pcm.tobytes())
+    return path
+
+
 def write_wav(
     path: Path,
     *,
