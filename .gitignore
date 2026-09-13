@@ -26,7 +26,7 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Node (frontend arrives in M14)
+# Node (frontend arrives in M7)
 node_modules/
 dist/
 

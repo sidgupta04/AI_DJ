@@ -12,7 +12,7 @@ track.
 - Baseline B — nearest BPM, fixed crossfade near the track edge.
 - Model C — BPM + energy compatibility ranking.
 - Model D — C plus stable-region transition selection and beat alignment.
-- Model E — D plus bounded lookahead sequencing (M13).
+- Model E — D plus bounded lookahead sequencing (M6 stretch only, if greedy fails).
 
 ## Objective metrics
 
@@ -26,7 +26,7 @@ Recorded per transition (see the `transitions` table) and reported as distributi
 - transition success and failure rates by failure type;
 - planning and render latency (p50/p95/p99), plus offline analysis duration and failure rate.
 
-## Human evaluation (M12)
+## Human evaluation (M6)
 
 60 transition pairs, baseline B versus model D on identical track pairs, presented blind and
 order-randomized to at least three listeners. Ratings: smoothness, rhythmic coherence, and energy

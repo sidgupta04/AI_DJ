@@ -117,7 +117,7 @@ retrieval:
 # --- Candidate ranking --------------------------------------------------------------------
 ranking:
   # Chosen priors, not learned weights: tempo > energy >> analysis confidence.
-  # Swept in M8 and checked against human ratings in M12. Must sum to 1.
+  # Swept in M6 and checked against human ratings there. Must sum to 1.
   weight_tempo: 0.60
   weight_energy: 0.35
   weight_quality: 0.05
