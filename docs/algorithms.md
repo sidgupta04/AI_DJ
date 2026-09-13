@@ -129,7 +129,7 @@ Known limitation: librosa's DP tracker will invent a fairly regular grid on irre
 so IBI CV alone does not catch every unusable file. Contrast rejects in-memory white noise
 (~0.13, below `min_onset_contrast` 0.15). Resampled noise can clear that floor with a product
 around 0.05; `min_confidence` is what rejects it. A pure sine can still look like a pulse in
-the onset envelope — M4's stable-region gates are what will later refuse a track that has a
+the onset envelope — M3's stable-region gates are what will later refuse a track that has a
 tempo but no mixable passage.
 
 Parameters: `analysis.sample_rate`, `hop_length`, `refine_hop_length`, `start_bpm`, `min_bpm`,
@@ -139,32 +139,41 @@ formulae, requires bumping `analysis.version` and reprocessing stored grids.
 
 ## Energy (M3)
 
-Not implemented yet. Planned: `E(t) = alpha * R(t) + (1 - alpha) * O(t)`, where `R` is frame RMS
-in dBFS mapped across a fixed window and `O` is normalized onset strength, scaled library-wide by
-robust percentiles so cross-track comparison is meaningful.
+Not implemented yet. Planned: map frame RMS (dBFS over a fixed window) and onset strength onto
+**comparable `[0, 1]` scales first**, then combine them as `E(t) = alpha * R(t) + (1 - alpha) *
+O(t)`. Adding raw dBFS to raw onset would let units, not musical weight, decide the mix.
+The curve is stored at 10 Hz and scaled library-wide by robust percentiles so cross-track
+comparison is meaningful.
 
-## Stable rhythmic regions (M4)
+## Stable rhythmic regions (M3)
 
 Not implemented yet. Planned: sliding 32-beat windows stepped 4 beats, gated on inter-beat
 interval coefficient of variation, the fraction of intervals near the window median, and mean
 beat-position onset strength; survivors are scored and reduced by non-maximum suppression.
 
-## Candidate retrieval and ranking (M7, M8)
+## Candidate retrieval and ranking (M4)
 
 Not implemented yet. Retrieval filters (analysis complete, unplayed, within tempo tolerance, has a
-stable region); ranking applies the weighted tempo/energy/quality cost model.
+stable region); ranking applies the weighted tempo/energy/quality cost model. Tempo tolerance —
+including any relaxation step — must stay inside M5's hard stretch bound
+(`tempo.min_stretch_ratio` / `tempo.max_stretch_ratio`, ±5%). Retrieval must not propose a
+track M5 cannot render.
 
-## Transition planning (M9)
+## Transition planning (M4)
 
 Not implemented yet. Planned: enumerate outgoing and incoming stable regions in their respective
 search windows, score every pair on stability, local energy difference, required stretch, and
-position preference, and choose the cheapest valid pair.
+position preference, and choose the cheapest valid pair. Required stretch is also clipped by
+the same ±5% bound.
 
-## Tempo and phase alignment (M6)
+## Tempo and phase alignment (M5)
 
-Not implemented yet. Planned: constrain candidates first, then apply a modest pitch-preserving
-stretch via Rubber Band, then shift the incoming track so its chosen beat coincides with the
-outgoing beat. Tempo matching prevents drift; phase alignment starts the beats together.
+Not implemented yet. Planned: the seed track's native BPM is the initial V1 session-tempo
+default, not a permanent restriction. Constrain candidates first, then apply one constant
+pitch-preserving stretch via Rubber Band (`session_bpm / native_bpm`, bounded ±5%), then shift
+the incoming track so its chosen beat coincides with the outgoing beat. Tempo matching
+prevents drift; phase alignment starts the beats together. Continuous tempo ramps are out of
+scope.
 
 ## Crossfade (M5)
 

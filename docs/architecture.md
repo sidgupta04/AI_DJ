@@ -52,10 +52,13 @@ module keeps beat, energy, and region analysis testable on arrays alone.
 
 ## Session tempo
 
-The seed track's native BPM becomes the session tempo. Every later track is stretched once, for
-its whole duration, by `session_bpm / native_bpm`, so its beat grid maps linearly (`t' = t /
-stretch_factor`) and stays locked for as long as it plays. This removes drift from the runtime
-path at the cost of restricting candidates to a narrow tempo band.
+V1's **initial default** is that the seed track's native BPM becomes the session tempo. That
+is a starting policy, not a permanent restriction: a later milestone may pick a different
+constant session tempo. What stays fixed in V1 is the *shape* of the adjustment — one
+pitch-preserving stretch per track, constant for its whole duration, bounded by
+`tempo.min_stretch_ratio` / `tempo.max_stretch_ratio` (±5%). The beat grid then maps linearly
+(`t' = t / stretch_factor`) and stays locked for as long as the track plays. Continuous tempo
+ramps are out of scope. Retrieval (M4) must never propose a track that would break this bound.
 
 ## Ingestion path (M1)
 
@@ -135,11 +138,27 @@ resets the three analysis columns, deletes the `track_analysis` row, and returns
 One bad file never stops the batch. Decode failures reuse the M1 `SourceFailure` reasons;
 beat-tracking failures use `AnalysisFailure`; a vanished path is `MISSING_FILE`.
 
+## Scaling
+
+The working library is about 150–200 tracks. At that size, PostgreSQL filters on analysis
+status, `native_bpm`, and energy are enough; there is no ANN or vector index in V1.
+
+A design that had to reach ~100k tracks would add indexes on those structured columns, a
+background queue for analysis and render, object storage for mix WAVs, and vector/ANN search
+only if high-dimensional semantic features actually appeared. That evolution is a note, not a
+milestone. See `docs/roadmap.md`.
+
 ## Milestone status
 
 - M0 project skeleton — complete
 - M1 audio ingestion — complete
 - M2 BPM and beat-grid analysis — complete
-- M3-M15 — not started
+- M3 musical features and stable regions — not started
+- M4 candidate selection and transition planning — not started
+- M5 tempo/beat sync and audio rendering — not started
+- M6 evaluation and algorithm improvements — not started
+- M7 DJ session runtime and demo application — not started
+- M8 reliability, performance, and polish — not started
 
-Sections are filled in by the milestone that implements them.
+The authoritative plan, including the old 16-step mapping, is `docs/roadmap.md`. Sections
+below are filled in by the milestone that implements them.

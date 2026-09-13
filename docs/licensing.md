@@ -21,13 +21,13 @@ project.
 ## Swapping the stretch backend
 
 `tempo.stretch_backend` selects the implementation behind the `TimeStretcher` interface
-(introduced in M6). Planned options:
+(introduced in M5). Planned options:
 
 | Backend | Library | License | Notes |
 | --- | --- | --- | --- |
 | `pedalboard` | `pedalboard` (Rubber Band) | GPLv3 | Default. Best quality, pip wheels, stereo float32. |
 | `rubberband_cli` | `pyrubberband` + `rubberband` CLI | GPLv2+ | Same engine as a subprocess; needs a system package. |
-| `phase_vocoder` | `librosa` | ISC | Permissive fallback; audibly worse at larger ratios. Kept as the comparison baseline in the M6 quality experiment. |
+| `phase_vocoder` | `librosa` | ISC | Permissive fallback; audibly worse at larger ratios. Kept as the comparison baseline in an M5/M6 quality experiment if one is needed. |
 
 Choosing `phase_vocoder` and removing the `pedalboard` dependency is what a permissive relicensing
 would require. Keep that path working.

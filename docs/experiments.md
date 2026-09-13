@@ -64,8 +64,8 @@ Result:
 Decision: keep `analysis.sample_rate = 22050`. BPM, the number retrieval will filter on, is
 already inside 0.4 BPM at 22.05 kHz. 44.1 kHz roughly halves timing error (as expected from a
 finer hop in seconds) and costs ~2.4× wall time, which is not worth it for a tempo that later
-alignment can still nudge. Revisit if measured mix alignment error in M6 is dominated by this
+alignment can still nudge. Revisit if measured mix alignment error in M5 is dominated by this
 ~12 ms residual.
 
-The first are still scheduled for M3 (energy aggregation) and M4 (stable-region threshold
-calibration).
+The next scheduled experiments are M3 (energy aggregation and stable-region threshold
+calibration). Ranking-weight and human-listening checks belong to M6.

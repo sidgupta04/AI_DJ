@@ -2,8 +2,8 @@
 
 These rules persist across all milestones. Read them before touching this repository.
 
-The architectural roadmap lives in the AutoDJ V1 Technical Plan (16 milestones, M0-M15). The
-roadmap is not permission to implement more than one milestone.
+The architectural roadmap lives in `docs/roadmap.md` (9 milestones, M0-M8). That file is
+not permission to implement more than one milestone.
 
 ## Milestone workflow
 

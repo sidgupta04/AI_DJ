@@ -7,10 +7,11 @@ renders equal-power crossfades while recording latency and transition-quality me
 
 V1 targets a controlled library of roughly 100 house/electronic tracks in steady 4/4.
 
-**Status: Milestone 2 of 16 — BPM and beat-grid analysis.** Ingested tracks can be decoded and
-analysed offline into a native BPM, a refined beat grid, and a documented confidence score.
-No energy analysis, transition planning, or mixing behavior exists yet. Milestones are
-implemented one at a time; see `AGENTS.md` for the working agreement.
+**Status: Milestone 2 of 9 — BPM and beat-grid analysis (complete).** Ingested tracks can be
+decoded and analysed offline into a native BPM, a refined beat grid, and a documented
+quality score. Energy analysis, transition planning, and mixing are not started. The
+authoritative plan is `docs/roadmap.md`; see `AGENTS.md` for the one-milestone-per-run
+working agreement.
 
 ## Prerequisites
 
@@ -97,7 +98,7 @@ backend/autodj/
   api/          FastAPI routes
   config/       settings.py and default.yaml (every tunable, with reasons)
 backend/tests/  unit and integration tests, synthetic audio only
-docs/           architecture, algorithms, parameters, experiments, evaluation, licensing
+docs/           roadmap, architecture, algorithms, parameters, experiments, evaluation, licensing
 ```
 
 `audio/` and `dj/` are pure: no database, no HTTP. This is enforced by import-linter contracts in
