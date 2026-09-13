@@ -15,6 +15,7 @@ from sqlalchemy import (
     DateTime,
     Double,
     Enum,
+    ForeignKey,
     Index,
     Integer,
     SmallInteger,
@@ -23,7 +24,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from autodj.audio.naming import MetadataSource
 
@@ -95,11 +96,36 @@ class Track(Base):
     )
     failure_reason: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    native_bpm: Mapped[float | None] = mapped_column(
+        Double,
+        nullable=True,
+        comment="Median-IBI tempo of the chosen beat grid. Null until analysis completes.",
+    )
+    analysis_confidence: Mapped[float | None] = mapped_column(
+        Double,
+        nullable=True,
+        comment=(
+            "Heuristic beat-grid quality in [0, 1] "
+            "(tempo_regularity * onset_contrast). Not a probability of correctness."
+        ),
+    )
+    analysis_version: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Feature-format version that produced native_bpm and the beat grid.",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    analysis: Mapped[TrackAnalysis | None] = relationship(
+        back_populates="track",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     __table_args__ = (
@@ -111,3 +137,51 @@ class Track(Base):
         return (
             f"Track(id={self.id!r}, audio_path={self.audio_path!r}, status={self.analysis_status})"
         )
+
+
+class TrackAnalysis(Base):
+    """Beat-grid and diagnostics for one completed analysis of a track.
+
+    Queryable tempo and confidence live on ``tracks`` so later retrieval does not join
+    this table. The grid itself and the measurements that produced those two numbers live
+    here: hundreds of timestamps and diagnostics that transition planning will read.
+    """
+
+    __tablename__ = "track_analysis"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    track_id: Mapped[int] = mapped_column(
+        ForeignKey("tracks.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+
+    beat_times: Mapped[list[float]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Refined beat timestamps in seconds from the start of the file.",
+    )
+    beat_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    sample_rate: Mapped[int] = mapped_column(Integer, nullable=False)
+    hop_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    refine_hop_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    median_ibi_seconds: Mapped[float] = mapped_column(Double, nullable=False)
+    ibi_cv: Mapped[float] = mapped_column(Double, nullable=False)
+    onset_contrast: Mapped[float] = mapped_column(Double, nullable=False)
+    tempo_octave_factor: Mapped[float] = mapped_column(
+        Double,
+        nullable=False,
+        comment="0.5, 1.0 or 2.0: which octave of the raw librosa grid was kept.",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    track: Mapped[Track] = relationship(back_populates="analysis")
+
+    def __repr__(self) -> str:
+        return f"TrackAnalysis(track_id={self.track_id!r}, beat_count={self.beat_count!r})"
