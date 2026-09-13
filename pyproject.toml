@@ -10,6 +10,7 @@ dependencies = [
     "alembic>=1.14",
     "fastapi>=0.115",
     # Audio is handled as float32 PCM arrays from the decode boundary onwards.
+    "librosa>=1.0.0",
     "numpy>=2.1",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",
@@ -60,6 +61,10 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unused_configs = true
 no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["librosa", "librosa.*"]
+ignore_missing_imports = true
 
 [tool.importlinter]
 root_package = "autodj"

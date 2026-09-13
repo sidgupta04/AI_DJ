@@ -42,5 +42,11 @@ would require. Keep that path working.
 | psycopg | LGPL-3.0 | PostgreSQL driver (dynamically linked, no additional obligation here) |
 | structlog | MIT / Apache-2.0 | Structured logging |
 | ffmpeg (external binary) | LGPL/GPL depending on build | Decoding, invoked as a subprocess |
+| librosa | ISC | Offline onset envelope and dynamic-programming beat tracking |
+
+`librosa` is the beat tracker specified for M2. It is permissive (ISC) and does not change
+the project's GPLv3 obligation, which still comes from the planned Rubber Band / `pedalboard`
+link. It pulls a scientific Python stack (numpy, scipy, numba, scikit-learn, soundfile, soxr)
+under BSD/MIT-style licenses. No other DSP library was added.
 
 Adding a dependency means adding it here with its license and role.
