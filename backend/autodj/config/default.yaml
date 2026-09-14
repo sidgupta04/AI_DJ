@@ -30,7 +30,8 @@ ingestion:
 # --- Offline analysis ---------------------------------------------------------------------
 analysis:
   # Bumping version invalidates stored features and requires deliberate reprocessing.
-  version: 1
+  # 2 = M3 energy curve + stable regions. M2 (version 1) rows are reprocessed automatically.
+  version: 2
   # 22.05 kHz mono: beat precision is set by the onset-envelope frame rate, not the sample
   # rate, so this halves analysis cost. Confirmed by the M2 22.05 vs 44.1 kHz experiment.
   sample_rate: 22050
@@ -69,18 +70,20 @@ analysis:
 
 # --- Energy ------------------------------------------------------------------------------
 energy:
-  # E(t) = alpha * RMS(t) + (1 - alpha) * onset(t). Weighted toward loudness because RMS is
-  # the more stable signal; treat as an experimental parameter.
+  # RMS (dBFS window → [0, 1]) and onset (per-track percentiles → [0, 1]) are mixed only
+  # after both sit on the same scale: E(t) = alpha * R(t) + (1 - alpha) * O(t). Weighted
+  # toward loudness because RMS is the more stable signal.
   alpha: 0.6
   # RMS in dBFS mapped linearly across this window, then clamped: perceptual, and immune to
-  # a single loud frame dominating normalization.
+  # a single loud frame dominating the scale.
   rms_floor_db: -60.0
   rms_ceiling_db: 0.0
   # Curves are stored at 10 Hz; transitions care about seconds-scale energy, not frames.
   curve_hz: 10.0
-  # Median resists intro/outro outliers better than the mean; compared in M3.
+  # Median resists intro/outro outliers better than the mean or p90 (M3 experiment).
   aggregation: median
-  # Robust library-wide scaling so cross-track energy comparison is meaningful.
+  # Dual use: per-track onset → [0, 1], then library-wide scaling of the aggregated scalar
+  # so cross-track energy comparison is meaningful.
   normalization_low_percentile: 5.0
   normalization_high_percentile: 95.0
 

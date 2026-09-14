@@ -129,8 +129,8 @@ Known limitation: librosa's DP tracker will invent a fairly regular grid on irre
 so IBI CV alone does not catch every unusable file. Contrast rejects in-memory white noise
 (~0.13, below `min_onset_contrast` 0.15). Resampled noise can clear that floor with a product
 around 0.05; `min_confidence` is what rejects it. A pure sine can still look like a pulse in
-the onset envelope — M3's stable-region gates are what will later refuse a track that has a
-tempo but no mixable passage.
+the onset envelope — M3's stable-region gates refuse a track that has a tempo but no mixable
+passage (`NO_STABLE_REGION`).
 
 Parameters: `analysis.sample_rate`, `hop_length`, `refine_hop_length`, `start_bpm`, `min_bpm`,
 `max_bpm`, `min_beats`, `max_ibi_cv`, `min_onset_contrast`, `min_confidence`,
@@ -139,17 +139,61 @@ formulae, requires bumping `analysis.version` and reprocessing stored grids.
 
 ## Energy (M3)
 
-Not implemented yet. Planned: map frame RMS (dBFS over a fixed window) and onset strength onto
-**comparable `[0, 1]` scales first**, then combine them as `E(t) = alpha * R(t) + (1 - alpha) *
-O(t)`. Adding raw dBFS to raw onset would let units, not musical weight, decide the mix.
-The curve is stored at 10 Hz and scaled library-wide by robust percentiles so cross-track
-comparison is meaningful.
+Produces a 10 Hz energy curve in `[0, 1]` and an aggregated scalar used later for retrieval.
+
+RMS and onset are **normalized onto `[0, 1]` first**, then mixed. Adding a raw dBFS number
+to a raw onset number would let units, not musical weight, decide the mix.
+
+1. Frame RMS at `analysis.hop_length` is converted to dBFS and mapped linearly through
+   `[energy.rms_floor_db, energy.rms_ceiling_db]`, then clamped to `[0, 1]`. The window is
+   absolute, so a louder track scores higher than a quieter one before any library scaling.
+2. Onset strength at the same hop is mapped through that track's
+   `energy.normalization_low_percentile` / `high_percentile` (5th/95th). Onset magnitude is
+   relative; the percentiles put it on the same scale as the RMS unit signal.
+3. `E(t) = alpha * R(t) + (1 - alpha) * O(t)` with `energy.alpha = 0.6`.
+4. The hop-rate curve is interpolated onto a `energy.curve_hz` (10 Hz) grid and stored.
+5. A per-track scalar is the configured aggregation of that curve. The M3 experiment on a
+   24 s pulsed loop with a loud 2 s intro and outro found median shift +0.013 versus mean
+   +0.052 and p90 +0.112, so `energy.aggregation` stays `median`.
+6. After a batch, every COMPLETE track at the current `analysis.version` has its scalar
+   mapped through the library 5th/95th of those scalars and written to `tracks.energy`.
+   Tracks analysed in earlier invocations are rewritten too. The stored curve is left
+   per-track so local gaps inside a transition window stay meaningful. A one-track library,
+   or a library whose 5th and 95th coincide, keeps the unscaled scalar.
+
+Parameters: `energy.alpha`, `rms_floor_db`, `rms_ceiling_db`, `curve_hz`, `aggregation`,
+`normalization_low_percentile`, `normalization_high_percentile`. Changing any of these, or
+the order of normalization versus mixing, requires bumping `analysis.version` and
+reprocessing.
 
 ## Stable rhythmic regions (M3)
 
-Not implemented yet. Planned: sliding 32-beat windows stepped 4 beats, gated on inter-beat
-interval coefficient of variation, the fraction of intervals near the window median, and mean
-beat-position onset strength; survivors are scored and reduced by non-maximum suppression.
+Produces up to `stable_regions.max_regions_per_track` (8) non-overlapping mixable windows
+on the refined beat grid.
+
+Candidate windows are `window_beats` (32) long, stepped `step_beats` (4). A window survives
+only if all three gates pass:
+
+- IBI coefficient of variation ≤ `ibi_cv_max` (0.06);
+- fraction of intervals within `ibi_tolerance` (5%) of the window median ≥
+  `in_tolerance_fraction_min` (0.90);
+- mean unit-mapped onset at the window's beats ≥ `onset_strength_floor` (0.35).
+
+Survivors are scored
+`w_tempo * (1 − ibi_cv / ibi_cv_max) + w_onset * mean_onset + w_tol * in_tolerance`,
+then reduced by non-maximum suppression: highest score first, drop any overlap, stop at 8.
+Remaining regions are stored in beat-index order.
+
+A grid with fewer than 32 beats, or with no surviving window, fails analysis with
+`NO_STABLE_REGION`. Tempo without a mixable passage is not a completed track; BPM is not
+kept. The M3 calibration on synthetic 124 BPM grids: a perfect grid and 2% time jitter
+(CV ≈ 0.017, typical tight house) pass; 5% jitter is rejected by the in-tolerance gate
+before CV; 8% jitter exceeds `ibi_cv_max`; a steady grid with onset 0.05 fails the onset
+floor. Defaults were left unchanged.
+
+Parameters: `stable_regions.window_beats`, `step_beats`, `ibi_cv_max`, `ibi_tolerance`,
+`in_tolerance_fraction_min`, `onset_strength_floor`, `max_regions_per_track`, `weight_*`.
+Changing the gates or the window length requires bumping `analysis.version`.
 
 ## Candidate retrieval and ranking (M4)
 

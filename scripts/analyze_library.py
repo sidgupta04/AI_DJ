@@ -1,4 +1,4 @@
-"""Analyse ingested tracks: BPM, beat grid, and analysis confidence.
+"""Analyse ingested tracks: BPM, energy curve, and stable mixable regions.
 
 Usage:
     uv run python scripts/analyze_library.py
