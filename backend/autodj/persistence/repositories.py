@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from autodj.audio.beats import BeatAnalysis
 from autodj.audio.decode import SourceMetadata
+from autodj.audio.energy import EnergyAnalysis
 from autodj.audio.naming import TrackNaming
+from autodj.audio.regions import StableRegion
 from autodj.persistence.models import AnalysisStatus, Track, TrackAnalysis
 
 
@@ -156,10 +158,19 @@ class TrackRepository:
     def mark_processing(self, track: Track) -> None:
         track.analysis_status = AnalysisStatus.PROCESSING
 
-    def save_analysis(self, track: Track, result: BeatAnalysis, *, version: int) -> TrackAnalysis:
-        track.native_bpm = result.native_bpm
-        track.analysis_confidence = result.confidence
+    def save_analysis(
+        self,
+        track: Track,
+        beats: BeatAnalysis,
+        energy: EnergyAnalysis,
+        regions: Sequence[StableRegion],
+        *,
+        version: int,
+    ) -> TrackAnalysis:
+        track.native_bpm = beats.native_bpm
+        track.analysis_confidence = beats.confidence
         track.analysis_version = version
+        track.energy = energy.scalar
         track.analysis_status = AnalysisStatus.COMPLETE
         track.failure_reason = None
 
@@ -168,18 +179,67 @@ class TrackRepository:
             row = TrackAnalysis(track_id=track.id)
             self._session.add(row)
 
-        beat_times = [round(float(time), 6) for time in result.beat_times]
+        beat_times = [round(float(time), 6) for time in beats.beat_times]
         row.beat_times = beat_times
         row.beat_count = len(beat_times)
-        row.sample_rate = result.sample_rate
-        row.hop_length = result.hop_length
-        row.refine_hop_length = result.refine_hop_length
-        row.median_ibi_seconds = 60.0 / result.native_bpm
-        row.ibi_cv = result.ibi_cv
-        row.onset_contrast = result.onset_contrast
-        row.tempo_octave_factor = result.tempo_octave_factor
+        row.sample_rate = beats.sample_rate
+        row.hop_length = beats.hop_length
+        row.refine_hop_length = beats.refine_hop_length
+        row.median_ibi_seconds = 60.0 / beats.native_bpm
+        row.ibi_cv = beats.ibi_cv
+        row.onset_contrast = beats.onset_contrast
+        row.tempo_octave_factor = beats.tempo_octave_factor
+        row.energy_curve = [round(float(value), 6) for value in energy.curve]
+        row.energy_curve_hz = energy.curve_hz
+        row.energy_scalar = energy.scalar
+        row.stable_regions = [region.as_dict() for region in regions]
         self._session.flush()
         return row
+
+    def rescale_library_energy(
+        self,
+        *,
+        low_percentile: float,
+        high_percentile: float,
+        analysis_version: int,
+    ) -> None:
+        """Map COMPLETE current-version scalars through the library 5th/95th span.
+
+        Every eligible track is rewritten, including ones not in the current analysis
+        invocation. A collapsed span (p5 == p95) leaves the unscaled scalar in place.
+        """
+        rows = list(
+            self._session.scalars(
+                select(TrackAnalysis)
+                .join(Track)
+                .where(
+                    Track.analysis_status == AnalysisStatus.COMPLETE,
+                    Track.analysis_version == analysis_version,
+                )
+            )
+        )
+        if not rows:
+            return
+        scalars = [row.energy_scalar for row in rows]
+        low = _percentile(scalars, low_percentile)
+        high = _percentile(scalars, high_percentile)
+        span = high - low
+        by_id = {row.track_id: row.energy_scalar for row in rows}
+        tracks = list(
+            self._session.scalars(
+                select(Track).where(
+                    Track.id.in_(by_id.keys()),
+                    Track.analysis_status == AnalysisStatus.COMPLETE,
+                    Track.analysis_version == analysis_version,
+                )
+            )
+        )
+        for track in tracks:
+            scalar = by_id[track.id]
+            if span <= 1e-12:
+                track.energy = scalar
+            else:
+                track.energy = min(1.0, max(0.0, (scalar - low) / span))
 
     def save_analysis_failure(self, track: Track, failure: Mapping[str, str]) -> Track:
         track.analysis_status = AnalysisStatus.FAILED
@@ -192,8 +252,22 @@ class TrackRepository:
         track.native_bpm = None
         track.analysis_confidence = None
         track.analysis_version = None
+        track.energy = None
         if track.id is None:
             return
         existing = self.get_analysis(track.id)
         if existing is not None:
             self._session.delete(existing)
+
+
+def _percentile(values: Sequence[float], percentile: float) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    if len(ordered) == 1:
+        return float(ordered[0])
+    rank = (percentile / 100.0) * (len(ordered) - 1)
+    low_index = int(rank)
+    high_index = min(low_index + 1, len(ordered) - 1)
+    fraction = rank - low_index
+    return float(ordered[low_index] * (1.0 - fraction) + ordered[high_index] * fraction)

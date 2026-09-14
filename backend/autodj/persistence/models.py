@@ -114,6 +114,14 @@ class Track(Base):
         nullable=True,
         comment="Feature-format version that produced native_bpm and the beat grid.",
     )
+    energy: Mapped[float | None] = mapped_column(
+        Double,
+        nullable=True,
+        comment=(
+            "Library-normalized aggregated energy in [0, 1] "
+            "(5th/95th of per-track scalars). Null until analysis completes."
+        ),
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -140,11 +148,10 @@ class Track(Base):
 
 
 class TrackAnalysis(Base):
-    """Beat-grid and diagnostics for one completed analysis of a track.
+    """Beat grid, energy curve, and stable regions for one completed analysis.
 
-    Queryable tempo and confidence live on ``tracks`` so later retrieval does not join
-    this table. The grid itself and the measurements that produced those two numbers live
-    here: hundreds of timestamps and diagnostics that transition planning will read.
+    Queryable tempo, quality, and library-normalized energy live on ``tracks`` so later
+    retrieval does not join this table. Temporal features live here.
     """
 
     __tablename__ = "track_analysis"
@@ -172,6 +179,22 @@ class TrackAnalysis(Base):
         Double,
         nullable=False,
         comment="0.5, 1.0 or 2.0: which octave of the raw librosa grid was kept.",
+    )
+    energy_curve: Mapped[list[float]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Combined energy E(t) at energy_curve_hz, each sample in [0, 1].",
+    )
+    energy_curve_hz: Mapped[float] = mapped_column(Double, nullable=False)
+    energy_scalar: Mapped[float] = mapped_column(
+        Double,
+        nullable=False,
+        comment="Per-track aggregation of energy_curve, before library-wide scaling.",
+    )
+    stable_regions: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Non-overlapping mixable windows (beat indices, times, scores).",
     )
 
     created_at: Mapped[datetime] = mapped_column(

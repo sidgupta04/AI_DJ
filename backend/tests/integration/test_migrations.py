@@ -100,6 +100,7 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         "native_bpm",
         "analysis_confidence",
         "analysis_version",
+        "energy",
         "created_at",
         "updated_at",
     }
@@ -115,6 +116,10 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         "ibi_cv",
         "onset_contrast",
         "tempo_octave_factor",
+        "energy_curve",
+        "energy_curve_hz",
+        "energy_scalar",
+        "stable_regions",
         "created_at",
         "updated_at",
     }
