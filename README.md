@@ -7,11 +7,10 @@ renders equal-power crossfades while recording latency and transition-quality me
 
 V1 targets a controlled library of roughly 100 house/electronic tracks in steady 4/4.
 
-**Status: Milestone 3 of 9 — musical features and stable regions (complete).** Ingested
-tracks can be decoded and analysed offline into a native BPM, a refined beat grid, a 10 Hz
-energy curve, a library-normalized energy scalar, and mixable 32-beat regions. Transition
-planning and mixing are not started. The authoritative plan is `docs/roadmap.md`; see
-`AGENTS.md` for the one-milestone-per-run working agreement.
+**Status: Milestone 4 of 9 — candidate selection and transition planning (complete).**
+Offline analysis (BPM, energy, mixable regions) plus retrieve / rank / plan from a
+playing track. No audio is rendered yet. The authoritative plan is `docs/roadmap.md`;
+see `AGENTS.md` for the one-milestone-per-run working agreement.
 
 ## Prerequisites
 
@@ -75,6 +74,18 @@ automatically. A tempo with no mixable window is recorded as `FAILED` with
 Energy aggregation (median vs mean vs p90) and region-gate calibration were measured on
 synthetic audio before the defaults were treated as settled; the numbers are in
 `docs/experiments.md`. The 22.05 kHz analysis rate was compared with 44.1 kHz the same way.
+
+## Planning a transition
+
+```bash
+uv run python scripts/plan_transition.py --track-id 42
+uv run python scripts/plan_transition.py --track-id 42 --session-bpm 126
+uv run python scripts/plan_transition.py --track-id 42 --played 10,20,30
+```
+
+Loads COMPLETE current-version tracks, filters by the ±5% stretch bound (never relaxed
+beyond what M5 can render), ranks by tempo/energy/quality, and picks the cheapest
+in-window region pair. No WAV is written. See `docs/algorithms.md`.
 
 ## Checks
 

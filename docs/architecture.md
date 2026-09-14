@@ -143,6 +143,18 @@ beat-tracking failures use `AnalysisFailure`; a tempo without a mixable 32-beat 
 `tracks.energy` is rewritten from the library 5th/95th of per-track scalars on COMPLETE
 rows at the current `analysis.version`.
 
+## Selection path (M4)
+
+`SelectionService` is the only writer of a next-track decision. It loads COMPLETE rows at
+the current `analysis.version` (skipping any that are missing BPM, energy, confidence, or
+duration), maps them to pure `TrackCandidate` dataclasses, and runs retrieve → rank →
+plan. Session tempo defaults to the current track's native BPM. Nothing here decodes
+audio or writes a mix.
+
+`list_candidates` returns dicts so the service can build dataclasses without leaking ORM
+types into `autodj.dj`. The three `autodj.dj` modules stay array/dataclass-in,
+values-out.
+
 ## Scaling
 
 The working library is about 150–200 tracks. At that size, PostgreSQL filters on analysis
@@ -159,7 +171,7 @@ milestone. See `docs/roadmap.md`.
 - M1 audio ingestion — complete
 - M2 BPM and beat-grid analysis — complete
 - M3 musical features and stable regions — complete
-- M4 candidate selection and transition planning — not started
+- M4 candidate selection and transition planning — complete
 - M5 tempo/beat sync and audio rendering — not started
 - M6 evaluation and algorithm improvements — not started
 - M7 DJ session runtime and demo application — not started

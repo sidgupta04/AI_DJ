@@ -16,7 +16,7 @@ durable context. A fresh agent should not need prior chat transcripts.
 | M1 | Audio ingestion | complete |
 | M2 | BPM and beat-grid analysis | complete |
 | M3 | Musical features and stable transition regions | complete |
-| M4 | Candidate selection and transition planning | not started |
+| M4 | Candidate selection and transition planning | complete |
 | M5 | Tempo/beat synchronization and audio rendering | not started |
 | M6 | Evaluation and algorithm improvements | not started |
 | M7 | DJ session runtime and demo application | not started |
@@ -130,9 +130,9 @@ local energy gap, required stretch, position; pick the cheapest valid pair.
 `tempo.min_stretch_ratio` / `tempo.max_stretch_ratio` (±5%). M4 must never select a
 track or a pair that would require more adjustment than that. Any retrieval
 relaxation beyond the first BPM filter is still capped by the same bound. A looser
-filter that proposes an unrenderable mix is a bug. The current
-`retrieval.relaxed_bpm_deviation_pct: 7.0` hypothesis exceeds ±5% and must be
-tightened or dropped when M4 lands.
+filter that proposes an unrenderable mix is a bug. M4 dropped
+`retrieval.max_bpm_deviation_pct` and `relaxed_bpm_deviation_pct`; the stretch
+bound is the only tempo gate, and relaxation drops only the energy filter.
 
 **Non-goals.** Rubber Band, WAV output, sessions API, lookahead, learned weights.
 
