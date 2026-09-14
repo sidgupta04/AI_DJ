@@ -1,8 +1,8 @@
-"""Offline beat-grid analysis.
+"""Offline analysis: beat grid, energy curve, and stable mixable regions.
 
-Decodes a persisted track, runs the pure beat tracker, and writes tempo, confidence and
-the beat grid back. One file never aborts the batch: decode and tracking failures become
-FAILED rows with a structured reason.
+Decodes a persisted track, runs the pure analyzers, and writes tempo, energy, confidence
+and temporal features back. One file never aborts the batch: decode and tracking
+failures become FAILED rows with a structured reason.
 """
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ from autodj.audio.beats import (
     analyze_beats,
 )
 from autodj.audio.decode import SourceError, decode_to_mono
+from autodj.audio.energy import EnergyAnalysis, analyze_energy
+from autodj.audio.regions import RegionDetectionError, StableRegion, detect_stable_regions
 from autodj.config.settings import Settings
 from autodj.logging_config import get_logger
 from autodj.persistence.database import session_scope
@@ -41,11 +43,20 @@ class AnalysisOutcomeStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class TrackFeatures:
+    beats: BeatAnalysis
+    energy: EnergyAnalysis
+    regions: list[StableRegion]
+
+
+@dataclass(frozen=True, slots=True)
 class AnalysisOutcome:
     audio_path: str
     status: AnalysisOutcomeStatus
     native_bpm: float | None = None
     confidence: float | None = None
+    energy: float | None = None
+    region_count: int | None = None
     failure: dict[str, str] | None = None
 
 
@@ -111,6 +122,9 @@ class LibraryAnalysisService:
         for track_id, relative_path in jobs:
             report.record(self._analyze_track(track_id, relative_path, root))
 
+        if report.selected:
+            self._rescale_library_energy()
+
         report.elapsed_seconds = time.perf_counter() - started
         logger.info(
             "library_analysis_finished",
@@ -140,7 +154,7 @@ class LibraryAnalysisService:
             return self._persist_failure(track_id, relative_path, failure)
 
         try:
-            result = self._run_analysis(path)
+            features = self._run_analysis(path)
         except SourceError as error:
             logger.warning(
                 "track_analysis_failed",
@@ -150,6 +164,14 @@ class LibraryAnalysisService:
             )
             return self._persist_failure(track_id, relative_path, error.as_dict())
         except BeatTrackingError as error:
+            logger.warning(
+                "track_analysis_failed",
+                audio_path=relative_path,
+                reason=str(error.failure),
+                detail=error.detail,
+            )
+            return self._persist_failure(track_id, relative_path, error.as_dict())
+        except RegionDetectionError as error:
             logger.warning(
                 "track_analysis_failed",
                 audio_path=relative_path,
@@ -170,32 +192,42 @@ class LibraryAnalysisService:
             track = repository.get_by_id(track_id)
             if track is None:
                 return AnalysisOutcome(relative_path, AnalysisOutcomeStatus.SKIPPED)
-            repository.save_analysis(track, result, version=self._settings.analysis.version)
+            repository.save_analysis(
+                track,
+                features.beats,
+                features.energy,
+                features.regions,
+                version=self._settings.analysis.version,
+            )
 
         logger.info(
             "track_analysis_completed",
             audio_path=relative_path,
-            native_bpm=round(result.native_bpm, 3),
-            confidence=round(result.confidence, 3),
-            beat_count=int(result.beat_times.size),
-            tempo_octave_factor=result.tempo_octave_factor,
+            native_bpm=round(features.beats.native_bpm, 3),
+            confidence=round(features.beats.confidence, 3),
+            energy=round(features.energy.scalar, 3),
+            beat_count=int(features.beats.beat_times.size),
+            region_count=len(features.regions),
+            tempo_octave_factor=features.beats.tempo_octave_factor,
             analysis_version=self._settings.analysis.version,
         )
         return AnalysisOutcome(
             relative_path,
             AnalysisOutcomeStatus.COMPLETED,
-            native_bpm=result.native_bpm,
-            confidence=result.confidence,
+            native_bpm=features.beats.native_bpm,
+            confidence=features.beats.confidence,
+            energy=features.energy.scalar,
+            region_count=len(features.regions),
         )
 
-    def _run_analysis(self, path: Path) -> BeatAnalysis:
+    def _run_analysis(self, path: Path) -> TrackFeatures:
         settings = self._settings
         samples = decode_to_mono(
             path,
             sample_rate=settings.analysis.sample_rate,
             timeout=settings.ingestion.subprocess_timeout_seconds,
         )
-        return analyze_beats(
+        beats = analyze_beats(
             samples,
             sample_rate=settings.analysis.sample_rate,
             hop_length=settings.analysis.hop_length,
@@ -209,6 +241,46 @@ class LibraryAnalysisService:
             min_confidence=settings.analysis.min_confidence,
             refine_search_radius_frames=settings.analysis.refine_search_radius_frames,
         )
+        energy = analyze_energy(
+            samples,
+            sample_rate=settings.analysis.sample_rate,
+            hop_length=settings.analysis.hop_length,
+            alpha=settings.energy.alpha,
+            rms_floor_db=settings.energy.rms_floor_db,
+            rms_ceiling_db=settings.energy.rms_ceiling_db,
+            curve_hz=settings.energy.curve_hz,
+            aggregation=settings.energy.aggregation,
+            onset_low_percentile=settings.energy.normalization_low_percentile,
+            onset_high_percentile=settings.energy.normalization_high_percentile,
+        )
+        regions = detect_stable_regions(
+            beats.beat_times,
+            onset_unit=energy.onset_unit,
+            sample_rate=energy.sample_rate,
+            hop_length=energy.hop_length,
+            energy_curve=energy.curve,
+            energy_curve_hz=energy.curve_hz,
+            window_beats=settings.stable_regions.window_beats,
+            step_beats=settings.stable_regions.step_beats,
+            ibi_cv_max=settings.stable_regions.ibi_cv_max,
+            ibi_tolerance=settings.stable_regions.ibi_tolerance,
+            in_tolerance_fraction_min=settings.stable_regions.in_tolerance_fraction_min,
+            onset_strength_floor=settings.stable_regions.onset_strength_floor,
+            max_regions_per_track=settings.stable_regions.max_regions_per_track,
+            weight_tempo_consistency=settings.stable_regions.weight_tempo_consistency,
+            weight_onset_strength=settings.stable_regions.weight_onset_strength,
+            weight_in_tolerance=settings.stable_regions.weight_in_tolerance,
+        )
+        return TrackFeatures(beats=beats, energy=energy, regions=regions)
+
+    def _rescale_library_energy(self) -> None:
+        energy = self._settings.energy
+        with session_scope(self._session_factory) as session:
+            TrackRepository(session).rescale_library_energy(
+                low_percentile=energy.normalization_low_percentile,
+                high_percentile=energy.normalization_high_percentile,
+                analysis_version=self._settings.analysis.version,
+            )
 
     def _persist_failure(
         self, track_id: int, relative_path: str, failure: dict[str, str]
@@ -230,4 +302,5 @@ __all__ = [
     "AnalysisReport",
     "LibraryAnalysisService",
     "PipelineFailure",
+    "TrackFeatures",
 ]
