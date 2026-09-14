@@ -15,7 +15,7 @@ durable context. A fresh agent should not need prior chat transcripts.
 | M0 | Foundation | complete |
 | M1 | Audio ingestion | complete |
 | M2 | BPM and beat-grid analysis | complete |
-| M3 | Musical features and stable transition regions | not started |
+| M3 | Musical features and stable transition regions | complete |
 | M4 | Candidate selection and transition planning | not started |
 | M5 | Tempo/beat synchronization and audio rendering | not started |
 | M6 | Evaluation and algorithm improvements | not started |

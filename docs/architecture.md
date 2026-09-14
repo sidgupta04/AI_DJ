@@ -112,31 +112,36 @@ Filenames in a real library are messy (`Drake - Nice For What (Lyrics).mp3`), so
 as a source path first and a name only as a last resort. Embedded tags win when present; otherwise
 the filename stem is sanitized conservatively. See `docs/algorithms.md`.
 
-## Analysis path (M2)
+## Analysis path (M2, M3)
 
 Analysis is the only writer of `tracks.native_bpm`, `tracks.analysis_confidence`,
-`tracks.analysis_version`, and the `track_analysis` table. It reads rows that ingestion has
-already validated, decodes each file once to mono PCM at `analysis.sample_rate`, and runs the
-pure beat tracker in `autodj.audio.beats`.
+`tracks.energy`, `tracks.analysis_version`, and the `track_analysis` table. It reads rows
+that ingestion has already validated, decodes each file once to mono PCM at
+`analysis.sample_rate`, and runs the pure beat tracker, energy curve, and region detector.
 
-Queryable tempo and quality stay on `tracks` so later retrieval can filter without loading a
-beat grid. `analysis_confidence` is a heuristic quality score in [0, 1], not a probability
-that the BPM is correct. The grid and the diagnostics that produced those two numbers live on
-`track_analysis` (1:1, cascaded delete): refined timestamps, beat count, the hops and sample
-rate used, median IBI, IBI CV, onset contrast, and which octave of the raw librosa grid was
-kept. The onset envelope is not stored; it is large and regenerable.
+Queryable tempo, quality, and library-normalized energy stay on `tracks` so later retrieval
+can filter without loading a grid. `analysis_confidence` is a heuristic quality score in
+[0, 1], not a probability that the BPM is correct. Temporal features live on
+`track_analysis` (1:1, cascaded delete): refined timestamps, the hops and sample rate used,
+median IBI, IBI CV, onset contrast, octave factor, the 10 Hz energy curve, the per-track
+energy scalar, and the surviving stable regions. The onset envelope is not stored; it is
+large and regenerable.
 
 Status moves `PENDING` → `PROCESSING` → `COMPLETE` or `FAILED`. `PROCESSING` is committed
 before the decode so a crash mid-file is retried on the next run: the default queue is
 PENDING, PROCESSING, and stale-version COMPLETE. A row left in PROCESSING is selected and
-analysed again without `--reanalyze`. `COMPLETE` rows whose
-`analysis_version` does not match the current config are reprocessed without `--reanalyze`.
-`--reanalyze` also redoes current COMPLETE and FAILED rows. Ingestion of a changed file
-resets the three analysis columns, deletes the `track_analysis` row, and returns the track to
-`PENDING`.
+analysed again without `--reanalyze`. `COMPLETE` rows whose `analysis_version` does not
+match the current config are reprocessed without `--reanalyze`. M3 bumped
+`analysis.version` from 1 to 2 (energy curve + regions); every M2-complete row is therefore
+stale until it is analysed again. `--reanalyze` also redoes current COMPLETE and FAILED
+rows. Ingestion of a changed file resets the analysis columns, deletes the
+`track_analysis` row, and returns the track to `PENDING`.
 
 One bad file never stops the batch. Decode failures reuse the M1 `SourceFailure` reasons;
-beat-tracking failures use `AnalysisFailure`; a vanished path is `MISSING_FILE`.
+beat-tracking failures use `AnalysisFailure`; a tempo without a mixable 32-beat window is
+`NO_STABLE_REGION`; a vanished path is `MISSING_FILE`. After any selected jobs in a run,
+`tracks.energy` is rewritten from the library 5th/95th of per-track scalars on COMPLETE
+rows at the current `analysis.version`.
 
 ## Scaling
 
@@ -153,7 +158,7 @@ milestone. See `docs/roadmap.md`.
 - M0 project skeleton — complete
 - M1 audio ingestion — complete
 - M2 BPM and beat-grid analysis — complete
-- M3 musical features and stable regions — not started
+- M3 musical features and stable regions — complete
 - M4 candidate selection and transition planning — not started
 - M5 tempo/beat sync and audio rendering — not started
 - M6 evaluation and algorithm improvements — not started

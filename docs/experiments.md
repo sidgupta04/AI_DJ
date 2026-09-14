@@ -16,6 +16,63 @@ Result: <numbers, distributions, not adjectives>
 Decision: <what changed in default.yaml or the code, and why>
 ```
 
+## 2026-09-14 — Do the default region gates keep a tight grid and reject a sparse or wandering one?
+
+Milestone: M3
+Configuration: `default.yaml` `stable_regions` section
+
+```text
+stable_regions.window_beats: 32
+stable_regions.step_beats: 4
+stable_regions.ibi_cv_max: 0.06
+stable_regions.ibi_tolerance: 0.05
+stable_regions.in_tolerance_fraction_min: 0.90
+stable_regions.onset_strength_floor: 0.35
+stable_regions.max_regions_per_track: 8
+```
+
+Dataset: synthetic 48-beat grids at 124 BPM, generated in memory. No private library.
+Jitter is uniform time noise as a fraction of the nominal IBI, then sorted.
+Method: `uv run python scripts/experiment_region_thresholds.py`
+
+Result:
+
+| grid | IBI CV | detect (onset=1.0) |
+| --- | ---: | --- |
+| perfect | 0.0000 | PASS n=1 score=1.000 |
+| 2% jitter | 0.0165 | PASS n=1 score=0.875 cv=0.0150 |
+| 5% jitter | 0.0445 | FAIL `NO_STABLE_REGION` (in-tolerance gate) |
+| 8% jitter | 0.0760 | FAIL `NO_STABLE_REGION` (CV > 0.06) |
+| perfect, onset=0.05 | 0.0000 | FAIL `NO_STABLE_REGION` (onset floor) |
+
+Decision: keep `ibi_cv_max = 0.06` and `onset_strength_floor = 0.35`. 2% jitter matches the
+tight house CV cited in `default.yaml` (0.01–0.02) and still mixes. 5% jitter is already
+rejected by the 90%-within-5% in-tolerance gate, so CV is not the only brake. The onset
+floor still refuses a metronomic but pulse-less grid.
+
+## 2026-09-14 — Does median energy resist a loud intro/outro better than mean or p90?
+
+Milestone: M3
+Configuration: `default.yaml` energy section (`alpha` 0.6, dBFS window −60/0, curve 10 Hz,
+onset percentiles 5/95). Aggregation is the independent variable.
+
+Dataset: one 24 s, 124 BPM pulsed 220 Hz tone (50% duty, body amplitude 0.15) versus the
+same loop with a 2 s full-scale sine intro and outro. Generated in memory. No private
+library.
+Method: `uv run python scripts/experiment_energy_aggregation.py`
+
+Result:
+
+| method | body | spiked | delta |
+| --- | ---: | ---: | ---: |
+| median | 0.3914 | 0.4047 | +0.0133 |
+| mean | 0.2729 | 0.3248 | +0.0519 |
+| p90 | 0.4582 | 0.5704 | +0.1122 |
+
+Decision: keep `energy.aggregation = median`. The loud edges move median by 0.013 and mean
+by 0.052; p90 tracks the spike. Revisit only if real-library drops turn out to be quieter
+than the body rather than louder.
+
 ## 2026-09-12 — Does analysing at 44.1 kHz improve BPM or beat timing enough to drop 22.05 kHz?
 
 Milestone: M2
@@ -66,6 +123,3 @@ already inside 0.4 BPM at 22.05 kHz. 44.1 kHz roughly halves timing error (as ex
 finer hop in seconds) and costs ~2.4× wall time, which is not worth it for a tempo that later
 alignment can still nudge. Revisit if measured mix alignment error in M5 is dominated by this
 ~12 ms residual.
-
-The next scheduled experiments are M3 (energy aggregation and stable-region threshold
-calibration). Ranking-weight and human-listening checks belong to M6.

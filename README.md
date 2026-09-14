@@ -7,11 +7,11 @@ renders equal-power crossfades while recording latency and transition-quality me
 
 V1 targets a controlled library of roughly 100 house/electronic tracks in steady 4/4.
 
-**Status: Milestone 2 of 9 — BPM and beat-grid analysis (complete).** Ingested tracks can be
-decoded and analysed offline into a native BPM, a refined beat grid, and a documented
-quality score. Energy analysis, transition planning, and mixing are not started. The
-authoritative plan is `docs/roadmap.md`; see `AGENTS.md` for the one-milestone-per-run
-working agreement.
+**Status: Milestone 3 of 9 — musical features and stable regions (complete).** Ingested
+tracks can be decoded and analysed offline into a native BPM, a refined beat grid, a 10 Hz
+energy curve, a library-normalized energy scalar, and mixable 32-beat regions. Transition
+planning and mixing are not started. The authoritative plan is `docs/roadmap.md`; see
+`AGENTS.md` for the one-milestone-per-run working agreement.
 
 ## Prerequisites
 
@@ -55,7 +55,7 @@ A track is identified by its library-relative path, so rescanning is idempotent 
 in place re-validates it. `content_hash` only detects those changes — it never merges rows, so the
 same audio at two paths is two tracks. See `docs/architecture.md`.
 
-## Analysing beats
+## Analysing beats, energy, and regions
 
 ```bash
 uv run python scripts/analyze_library.py                 # pending and stale-version rows
@@ -65,15 +65,16 @@ uv run python scripts/analyze_library.py --limit 10
 ```
 
 Each pending track is decoded to mono PCM at `analysis.sample_rate` and run through librosa
-beat tracking, octave disambiguation, and sub-frame refinement. `native_bpm`,
-`analysis_confidence` and `analysis_version` are stored on `tracks`; the beat timestamps and
-diagnostics go in `track_analysis`. `analysis_confidence` is a heuristic beat-grid quality
-score in [0, 1] (regularity × onset alignment), not a probability that the BPM is correct.
-Unreliable grids are recorded as `FAILED` with a structured reason and never invent a BPM.
-See `docs/algorithms.md`.
+beat tracking, an energy curve (RMS and onset each mapped to `[0, 1]` before they are mixed),
+and 32-beat stable-region detection. `native_bpm`, `analysis_confidence`, `energy` and
+`analysis_version` are stored on `tracks`; the beat timestamps, 10 Hz energy curve, and
+regions go in `track_analysis`. `analysis.version` is 2; M2 rows (version 1) are reprocessed
+automatically. A tempo with no mixable window is recorded as `FAILED` with
+`NO_STABLE_REGION`. See `docs/algorithms.md`.
 
-The 22.05 kHz default was compared with 44.1 kHz on synthetic click tracks before being treated
-as settled; the numbers are in `docs/experiments.md`.
+Energy aggregation (median vs mean vs p90) and region-gate calibration were measured on
+synthetic audio before the defaults were treated as settled; the numbers are in
+`docs/experiments.md`. The 22.05 kHz analysis rate was compared with 44.1 kHz the same way.
 
 ## Checks
 

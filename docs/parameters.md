@@ -20,7 +20,7 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 
 | Parameter | Default | Reason | Status |
 | --- | --- | --- | --- |
-| `analysis.version` | 1 | Feature-format version; bumping it invalidates stored features. First format; any change to hops, sample rate, octave scoring, refinement or confidence requires a bump and a reprocess | hypothesis |
+| `analysis.version` | 2 | Feature-format version; bumping it invalidates stored features. Version 2 adds the energy curve and stable regions; M2 (version 1) rows are reprocessed automatically | hypothesis |
 | `analysis.sample_rate` | 22050 | Beat precision follows the onset-envelope frame rate. 44.1 kHz halves that frame period and roughly halves timing error, but BPM error is already < 0.3 after refinement at 22.05 kHz; see `docs/experiments.md` | measured |
 | `analysis.hop_length` | 512 | 23.2 ms frames, the standard librosa beat-tracking grid | hypothesis |
 | `analysis.refine_hop_length` | 256 | 11.6 ms envelope for sub-frame beat refinement | hypothesis |
@@ -40,8 +40,8 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | `energy.alpha` | 0.6 | Weight loudness slightly above rhythmic activity; RMS is the more stable signal | hypothesis |
 | `energy.rms_floor_db` / `rms_ceiling_db` | -60 / 0 | Perceptual dBFS window, immune to one loud frame | hypothesis |
 | `energy.curve_hz` | 10 | Transitions care about seconds-scale energy, not frames | hypothesis |
-| `energy.aggregation` | median | Resists intro/outro outliers | hypothesis (M3 compares mean/median/p90) |
-| `energy.normalization_*_percentile` | 5 / 95 | Robust library-wide scaling for cross-track comparison. RMS and onset are each mapped to a comparable `[0, 1]` scale *before* the weighted sum | hypothesis |
+| `energy.aggregation` | median | Resists intro/outro outliers. On a 24 s pulsed loop with a loud 2 s intro/outro, median shifted +0.013 vs mean +0.052 and p90 +0.112 | measured |
+| `energy.normalization_*_percentile` | 5 / 95 | Dual use: per-track onset → `[0, 1]`, then library-wide scaling of the aggregated scalar. RMS and onset are each mapped to `[0, 1]` *before* the weighted sum | hypothesis |
 
 ## Stable regions
 
@@ -49,7 +49,7 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | --- | --- | --- | --- |
 | `stable_regions.window_beats` | 32 | 8 bars in 4/4, matching the default crossfade length | hypothesis |
 | `stable_regions.step_beats` | 4 | Dense candidates without quadratic scoring cost | hypothesis |
-| `stable_regions.ibi_cv_max` | 0.06 | Steady house sits near 0.01-0.02; this admits drift, rejects noise | hypothesis (M3 calibration) |
+| `stable_regions.ibi_cv_max` | 0.06 | Steady house sits near 0.01-0.02. Synthetic 124 BPM: 2% jitter CV ≈ 0.017 (pass), 5% ≈ 0.045 (fails in-tolerance, not CV), 8% ≈ 0.076 (fails CV) | measured |
 | `stable_regions.ibi_tolerance` | 0.05 | Interval counts as regular within 5% of the window median | hypothesis |
 | `stable_regions.in_tolerance_fraction_min` | 0.90 | Rejects windows with sporadic spurious beats | hypothesis |
 | `stable_regions.onset_strength_floor` | 0.35 | Rejects steady-but-sparse intros with no usable pulse | hypothesis |
