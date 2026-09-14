@@ -34,9 +34,12 @@ def test_documented_defaults_are_loaded(settings: Settings) -> None:
     assert settings.render.channels == 2
     assert settings.transition.crossfade_beats == 32
     assert settings.stable_regions.window_beats == 32
-    assert settings.retrieval.max_bpm_deviation_pct == pytest.approx(5.0)
     assert settings.tempo.min_stretch_ratio == pytest.approx(0.95)
     assert settings.tempo.max_stretch_ratio == pytest.approx(1.05)
+    assert settings.retrieval.energy_filter_enabled is True
+    assert settings.retrieval.max_energy_delta == pytest.approx(0.25)
+    assert not hasattr(settings.retrieval, "max_bpm_deviation_pct")
+    assert not hasattr(settings.retrieval, "relaxed_bpm_deviation_pct")
 
 
 def test_cost_weights_sum_to_one(settings: Settings) -> None:

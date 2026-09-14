@@ -146,18 +146,10 @@ class StableRegionSettings(ConfigSection):
 
 
 class RetrievalSettings(ConfigSection):
-    max_bpm_deviation_pct: float = Field(gt=0.0, le=50.0)
-    relaxed_bpm_deviation_pct: float = Field(gt=0.0, le=50.0)
     energy_filter_enabled: bool
     max_energy_delta: Fraction
     require_stable_region: bool
     allow_repeats: bool
-
-    @model_validator(mode="after")
-    def _relaxed_must_not_tighten(self) -> Self:
-        if self.relaxed_bpm_deviation_pct < self.max_bpm_deviation_pct:
-            raise ValueError("relaxed_bpm_deviation_pct must not be stricter than the strict value")
-        return self
 
 
 class RankingSettings(ConfigSection):
