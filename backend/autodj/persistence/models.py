@@ -208,3 +208,75 @@ class TrackAnalysis(Base):
 
     def __repr__(self) -> str:
         return f"TrackAnalysis(track_id={self.track_id!r}, beat_count={self.beat_count!r})"
+
+
+class TransitionStatus(StrEnum):
+    RENDERED = "RENDERED"
+    FAILED = "FAILED"
+
+
+class Transition(Base):
+    """A planned A→B mix and, when rendering succeeds, the WAV that realises it.
+
+    Metric columns (alignment error, energy discontinuity, latency) land in M6.
+    """
+
+    __tablename__ = "transitions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    track_a_id: Mapped[int] = mapped_column(
+        ForeignKey("tracks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    track_b_id: Mapped[int] = mapped_column(
+        ForeignKey("tracks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    session_bpm: Mapped[float] = mapped_column(Double, nullable=False)
+    stretch_ratio: Mapped[float] = mapped_column(
+        Double,
+        nullable=False,
+        comment="session_bpm / track B native_bpm, the constant incoming stretch.",
+    )
+    outgoing_start_beat: Mapped[int] = mapped_column(Integer, nullable=False)
+    outgoing_end_beat: Mapped[int] = mapped_column(Integer, nullable=False)
+    incoming_start_beat: Mapped[int] = mapped_column(Integer, nullable=False)
+    incoming_end_beat: Mapped[int] = mapped_column(Integer, nullable=False)
+    pair_cost: Mapped[float] = mapped_column(Double, nullable=False)
+    stability_cost: Mapped[float] = mapped_column(Double, nullable=False)
+    energy_cost: Mapped[float] = mapped_column(Double, nullable=False)
+    stretch_cost: Mapped[float] = mapped_column(Double, nullable=False)
+    position_cost: Mapped[float] = mapped_column(Double, nullable=False)
+    wav_path: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Path relative to render_cache_dir when status is RENDERED.",
+    )
+    peak_dbfs: Mapped[float | None] = mapped_column(Double, nullable=True)
+    peak_exceeded: Mapped[bool] = mapped_column(nullable=False, default=False)
+    clipped: Mapped[bool] = mapped_column(nullable=False, default=False)
+    status: Mapped[TransitionStatus] = mapped_column(
+        Enum(
+            TransitionStatus,
+            name="transition_status",
+            values_callable=lambda e: [m.value for m in e],
+        ),
+        nullable=False,
+    )
+    failure_reason: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (Index("ix_transitions_tracks", "track_a_id", "track_b_id"),)
+
+    def __repr__(self) -> str:
+        return (
+            f"Transition(id={self.id!r}, a={self.track_a_id!r}, b={self.track_b_id!r}, "
+            f"status={self.status})"
+        )

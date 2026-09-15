@@ -18,7 +18,13 @@ from autodj.audio.decode import SourceMetadata
 from autodj.audio.energy import EnergyAnalysis
 from autodj.audio.naming import TrackNaming
 from autodj.audio.regions import StableRegion
-from autodj.persistence.models import AnalysisStatus, Track, TrackAnalysis
+from autodj.persistence.models import (
+    AnalysisStatus,
+    Track,
+    TrackAnalysis,
+    Transition,
+    TransitionStatus,
+)
 
 
 class TrackRepository:
@@ -300,6 +306,64 @@ class TrackRepository:
         existing = self.get_analysis(track.id)
         if existing is not None:
             self._session.delete(existing)
+
+
+class TransitionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_by_id(self, transition_id: int) -> Transition | None:
+        return self._session.get(Transition, transition_id)
+
+    def save(
+        self,
+        *,
+        track_a_id: int,
+        track_b_id: int,
+        session_bpm: float,
+        stretch_ratio: float,
+        outgoing_start_beat: int,
+        outgoing_end_beat: int,
+        incoming_start_beat: int,
+        incoming_end_beat: int,
+        pair_cost: float,
+        stability_cost: float,
+        energy_cost: float,
+        stretch_cost: float,
+        position_cost: float,
+        status: TransitionStatus,
+        config_snapshot: Mapping[str, object],
+        wav_path: str | None = None,
+        peak_dbfs: float | None = None,
+        peak_exceeded: bool = False,
+        clipped: bool = False,
+        failure_reason: Mapping[str, str] | None = None,
+    ) -> Transition:
+        row = Transition(
+            track_a_id=track_a_id,
+            track_b_id=track_b_id,
+            session_bpm=session_bpm,
+            stretch_ratio=stretch_ratio,
+            outgoing_start_beat=outgoing_start_beat,
+            outgoing_end_beat=outgoing_end_beat,
+            incoming_start_beat=incoming_start_beat,
+            incoming_end_beat=incoming_end_beat,
+            pair_cost=pair_cost,
+            stability_cost=stability_cost,
+            energy_cost=energy_cost,
+            stretch_cost=stretch_cost,
+            position_cost=position_cost,
+            wav_path=wav_path,
+            peak_dbfs=peak_dbfs,
+            peak_exceeded=peak_exceeded,
+            clipped=clipped,
+            status=status,
+            failure_reason=dict(failure_reason) if failure_reason is not None else None,
+            config_snapshot=dict(config_snapshot),
+        )
+        self._session.add(row)
+        self._session.flush()
+        return row
 
 
 def _percentile(values: Sequence[float], percentile: float) -> float:
