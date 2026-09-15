@@ -197,18 +197,65 @@ Changing the gates or the window length requires bumping `analysis.version`.
 
 ## Candidate retrieval and ranking (M4)
 
-Not implemented yet. Retrieval filters (analysis complete, unplayed, within tempo tolerance, has a
-stable region); ranking applies the weighted tempo/energy/quality cost model. Tempo tolerance —
-including any relaxation step — must stay inside M5's hard stretch bound
-(`tempo.min_stretch_ratio` / `tempo.max_stretch_ratio`, ±5%). Retrieval must not propose a
-track M5 cannot render.
+From a playing track, decide which library rows are plausible and which of those is best.
+No audio is written.
+
+**Retrieval** (`autodj.dj.retrieve`) is a hard filter, then one optional relaxation:
+
+1. Drop the current track, already-played tracks (unless `retrieval.allow_repeats`),
+   tracks with no stable region (when `retrieval.require_stable_region`), and any row
+   whose `session_bpm / native_bpm` is outside
+   `[tempo.min_stretch_ratio, tempo.max_stretch_ratio]`.
+2. If `retrieval.energy_filter_enabled`, keep only rows whose library-normalised
+   `|energy − current.energy| ≤ retrieval.max_energy_delta`.
+3. If that energy gate leaves nobody, **drop only the energy gate**. The stretch bound
+   is never widened. The old `relaxed_bpm_deviation_pct: 7.0` hypothesis was dropped
+   because 7% exceeds the ±5% renderer limit.
+
+Incomplete, failed, and stale-`analysis.version` rows never reach this function: the
+service loads only COMPLETE rows at the current feature version.
+
+**Ranking** (`autodj.dj.rank`) scores the survivors. Lower is better:
+
+```text
+stretch           = session_bpm / native_bpm
+max_dev           = max(max_stretch_ratio − 1, 1 − min_stretch_ratio)
+tempo_cost        = min(1, |stretch − 1| / max_dev)
+energy_cost       = |candidate.energy − current.energy|          # library-normalised
+quality_cost      = 1 − analysis_confidence
+total_cost        = w_tempo·tempo_cost + w_energy·energy_cost + w_quality·quality_cost
+```
+
+Weights (`0.60 / 0.35 / 0.05`) sum to 1. Ties break on `track_id` ascending. After
+relaxation, energy_cost still orders the list — the gate is gone, the ranking term is not.
 
 ## Transition planning (M4)
 
-Not implemented yet. Planned: enumerate outgoing and incoming stable regions in their respective
-search windows, score every pair on stability, local energy difference, required stretch, and
-position preference, and choose the cheapest valid pair. Required stretch is also clipped by
-the same ±5% bound.
+Given tracks A (playing) and B (next), pick the cheapest exit/enter window pair.
+
+Outgoing regions whose midpoint fraction of A's duration falls in
+`transition.outgoing_search_fraction` `[0.65, 0.95]` are paired with incoming regions
+whose midpoint fraction of B falls in `[0.0, 0.35]`. Stretch outside the same
+`tempo.min/max_stretch_ratio` bound yields no plan.
+
+```text
+stretch_ratio     = session_bpm / B.native_bpm
+stretch_cost      = min(1, |stretch_ratio − 1| / max_dev)
+stability_cost    = clip(1 − (score_out + score_in) / 2, 0, 1)
+energy_cost       = |out.mean_energy − in.mean_energy|           # local curve means
+out_pos, in_pos   = midpoint / duration
+out_dev           = |out_pos − center_out| / half_out            # 0 at centre, 1 at edge
+in_dev            = |in_pos − center_in| / half_in
+position_cost     = (out_dev + in_dev) / 2
+pair_cost         = 0.40·stability + 0.30·energy + 0.20·stretch + 0.10·position
+```
+
+`mean_energy` is the mean of M3's per-track `[0, 1]` curve in that window (RMS is
+absolute dBFS; onset is per-track). That is the local gap the curve was stored for.
+Library-normalised `tracks.energy` is used only in retrieval/ranking.
+
+Ties break on `(outgoing.start_beat, incoming.start_beat)` ascending. If the top-ranked
+B has no pair in-window, the service walks the ranked list until one does.
 
 ## Tempo and phase alignment (M5)
 

@@ -63,6 +63,48 @@ class TrackRepository:
         )
         return {status: count for status, count in rows}
 
+    def list_candidates(self, *, analysis_version: int) -> list[dict[str, object]]:
+        """COMPLETE tracks at ``analysis_version`` with features for candidate selection.
+
+        Returns dicts rather than ORM models so the caller can construct pure
+        dataclasses without importing persistence types.  Each dict contains the
+        track-level columns needed for retrieval and ranking plus the temporal
+        features from ``track_analysis`` that planning consumes.
+        """
+        statement = (
+            select(Track, TrackAnalysis)
+            .join(TrackAnalysis, Track.id == TrackAnalysis.track_id)
+            .where(
+                Track.analysis_status == AnalysisStatus.COMPLETE,
+                Track.analysis_version == analysis_version,
+            )
+            .order_by(Track.id)
+        )
+        results: list[dict[str, object]] = []
+        for track, analysis in self._session.execute(statement):
+            if (
+                track.native_bpm is None
+                or track.energy is None
+                or track.analysis_confidence is None
+                or track.duration_seconds is None
+            ):
+                continue
+            results.append(
+                {
+                    "track_id": track.id,
+                    "audio_path": track.audio_path,
+                    "native_bpm": track.native_bpm,
+                    "energy": track.energy,
+                    "analysis_confidence": track.analysis_confidence,
+                    "analysis_version": track.analysis_version,
+                    "duration_seconds": track.duration_seconds,
+                    "stable_regions": analysis.stable_regions,
+                    "beat_times": analysis.beat_times,
+                    "beat_count": analysis.beat_count,
+                }
+            )
+        return results
+
     def save_source(
         self,
         *,

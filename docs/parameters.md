@@ -60,9 +60,9 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 
 | Parameter | Default | Reason | Status |
 | --- | --- | --- | --- |
-| `retrieval.max_bpm_deviation_pct` | 5.0 | Percentage, not absolute: perceptual tempo tolerance scales with tempo. Must stay inside M5's ±5% stretch bound | hypothesis |
-| `retrieval.relaxed_bpm_deviation_pct` | 7.0 | Leftover hypothesis; 7% exceeds the ±5% hard stretch bound. M4 must cap every relaxation at `tempo.min/max_stretch_ratio` | hypothesis |
-| `retrieval.max_energy_delta` | 0.25 | Drops obviously mismatched candidates before ranking | hypothesis |
+| `retrieval.max_energy_delta` | 0.25 | Drops obviously mismatched candidates before ranking. Relaxation drops this gate only | hypothesis |
+| `retrieval.energy_filter_enabled` | true | Lets a set continue when every remaining track is an energy jump | hypothesis |
+| `tempo.min/max_stretch_ratio` (retrieval) | 0.95 / 1.05 | Sole tempo gate. Replaces the dropped `max_bpm_deviation_pct` / `relaxed_bpm_deviation_pct` (7% exceeded this bound) | hypothesis |
 | `ranking.weight_tempo` | 0.60 | Chosen prior: tempo > energy >> analysis confidence | hypothesis (M6 sweep and human check) |
 | `ranking.weight_energy` | 0.35 | As above | hypothesis |
 | `ranking.weight_quality` | 0.05 | Small tie-breaking penalty for low-confidence analysis | hypothesis |

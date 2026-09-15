@@ -108,10 +108,9 @@ stable_regions:
 
 # --- Candidate retrieval ------------------------------------------------------------------
 retrieval:
-  # Percentage rather than absolute BPM: perceptual tempo tolerance scales with tempo.
-  max_bpm_deviation_pct: 5.0
-  # First relaxation step when no candidate survives the strict filters.
-  relaxed_bpm_deviation_pct: 7.0
+  # Tempo compatibility is enforced by tempo.min/max_stretch_ratio (the renderer's hard
+  # bound). There is no separate BPM-deviation percentage; it was redundant with the
+  # stretch ratio and the relaxed variant (7%) exceeded the ±5% limit.
   energy_filter_enabled: true
   max_energy_delta: 0.25
   require_stable_region: true
