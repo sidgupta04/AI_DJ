@@ -36,6 +36,9 @@ def test_documented_defaults_are_loaded(settings: Settings) -> None:
     assert settings.stable_regions.window_beats == 32
     assert settings.tempo.min_stretch_ratio == pytest.approx(0.95)
     assert settings.tempo.max_stretch_ratio == pytest.approx(1.05)
+    assert settings.tempo.stretch_backend == "pedalboard"
+    assert settings.render.output_bit_depth == 16
+    assert settings.render.peak_ceiling_dbfs == pytest.approx(-1.0)
     assert settings.retrieval.energy_filter_enabled is True
     assert settings.retrieval.max_energy_delta == pytest.approx(0.25)
     assert not hasattr(settings.retrieval, "max_bpm_deviation_pct")
