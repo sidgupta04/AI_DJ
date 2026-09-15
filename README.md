@@ -7,9 +7,9 @@ renders equal-power crossfades while recording latency and transition-quality me
 
 V1 targets a controlled library of roughly 100 house/electronic tracks in steady 4/4.
 
-**Status: Milestone 4 of 9 — candidate selection and transition planning (complete).**
-Offline analysis (BPM, energy, mixable regions) plus retrieve / rank / plan from a
-playing track. No audio is rendered yet. The authoritative plan is `docs/roadmap.md`;
+**Status: Milestone 5 of 9 — tempo/beat synchronization and audio rendering (complete).**
+Offline analysis plus retrieve / rank / plan, then a constant pitch-preserving stretch,
+beat alignment, and equal-power WAV. The authoritative plan is `docs/roadmap.md`;
 see `AGENTS.md` for the one-milestone-per-run working agreement.
 
 ## Prerequisites
@@ -84,8 +84,21 @@ uv run python scripts/plan_transition.py --track-id 42 --played 10,20,30
 ```
 
 Loads COMPLETE current-version tracks, filters by the ±5% stretch bound (never relaxed
-beyond what M5 can render), ranks by tempo/energy/quality, and picks the cheapest
+beyond what the renderer can render), ranks by tempo/energy/quality, and picks the cheapest
 in-window region pair. No WAV is written. See `docs/algorithms.md`.
+
+## Rendering a transition
+
+```bash
+uv run python scripts/render_transition.py --track-id 42
+uv run python scripts/render_transition.py --track-id 42 --session-bpm 126
+uv run python scripts/render_transition.py --track-id 42 --output /tmp/mix.wav
+```
+
+Plans the next mix, then stretches both stems by `session_bpm / native_bpm` (Rubber Band
+via pedalboard), aligns the chosen beats, equal-power crossfades, and writes a 16-bit
+stereo WAV under `AUTODJ_RENDER_CACHE_DIR`. Peak and clip flags are stored on a
+`transitions` row. See `docs/algorithms.md`.
 
 ## Checks
 

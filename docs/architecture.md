@@ -155,6 +155,23 @@ audio or writes a mix.
 types into `autodj.dj`. The three `autodj.dj` modules stay array/dataclass-in,
 values-out.
 
+## Render path (M5)
+
+`RenderService` is the only writer of mix WAVs and `transitions` rows. It loads the two
+stems, decodes **both** to stereo PCM at the same explicit `render.sample_rate` through
+`autodj.audio.decode` (ffmpeg `-ar`, so different native rates still meet at one rate),
+and calls `autodj.render` with arrays and beat times — never with `TransitionPlan`, because
+`render` and `dj` stay independent. Each stem is stretched once by `session_bpm / native_bpm`
+inside the ±5% bound, the chosen beats are aligned, and an equal-power crossfade is written
+as 16-bit PCM under `AUTODJ_RENDER_CACHE_DIR` via temp-file then rename. A row is
+`RENDERED` only after that publish; failures are `FAILED` with no `wav_path` and the
+attempt is discarded so nothing partial is treated as a valid mix. Peak/clip flags land
+on the row so M6 can attach metrics without another schema for the mix itself.
+
+`autodj.render` is array-in, values-out except for the mix writer, which is the package's
+I/O boundary the way `audio.decode` is the analysis I/O boundary. Source files stay
+read-only.
+
 ## Scaling
 
 The working library is about 150–200 tracks. At that size, PostgreSQL filters on analysis
@@ -172,7 +189,7 @@ milestone. See `docs/roadmap.md`.
 - M2 BPM and beat-grid analysis — complete
 - M3 musical features and stable regions — complete
 - M4 candidate selection and transition planning — complete
-- M5 tempo/beat sync and audio rendering — not started
+- M5 tempo/beat sync and audio rendering — complete
 - M6 evaluation and algorithm improvements — not started
 - M7 DJ session runtime and demo application — not started
 - M8 reliability, performance, and polish — not started

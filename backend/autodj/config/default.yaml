@@ -138,7 +138,8 @@ transition:
   weight_energy: 0.30
   weight_stretch: 0.20
   weight_position: 0.10
-  # Snap the alignment beat to the estimated downbeat phase so bars line up, not just beats.
+  # Snap alignment to the next inferred 4/4 bar-phase beat on the M2 grid
+  # (beat_index % 4 == 0). Not true downbeat detection — M2 has no downbeat model.
   align_on_downbeat: true
 
 # --- Tempo handling -----------------------------------------------------------------------
@@ -146,7 +147,8 @@ tempo:
   # +/-5% stretch is inaudible-to-benign with Rubber Band; beyond that house loses its feel.
   min_stretch_ratio: 0.95
   max_stretch_ratio: 1.05
-  # pedalboard wraps Rubber Band (GPLv3, see docs/licensing.md); backends are swappable.
+  # pedalboard wraps Rubber Band (GPLv3, see docs/licensing.md). rubberband_cli and
+  # phase_vocoder are documented swap paths; only pedalboard is implemented.
   stretch_backend: pedalboard
 
 # --- Rendering ----------------------------------------------------------------------------

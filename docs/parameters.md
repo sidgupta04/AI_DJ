@@ -76,9 +76,9 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | `transition.outgoing_search_fraction` | [0.65, 0.95] | Mix out late, but not into the tail | hypothesis |
 | `transition.incoming_search_fraction` | [0.0, 0.35] | Mix in early, skipping non-rhythmic intros | hypothesis |
 | `transition.weight_*` | 0.40 / 0.30 / 0.20 / 0.10 | Stability first, then energy continuity, then stretch cost, then position | hypothesis |
-| `transition.align_on_downbeat` | true | Bars line up, not just beats | hypothesis |
+| `transition.align_on_downbeat` | true | Snap to the next inferred 4/4 bar-phase beat (`index % 4 == 0`) on the M2 grid. Not true downbeat detection | hypothesis |
 | `tempo.min/max_stretch_ratio` | 0.95 / 1.05 | +/-5% is benign with Rubber Band; beyond that house loses its feel | hypothesis |
-| `tempo.stretch_backend` | pedalboard | Rubber Band quality via pip wheels; swappable interface | hypothesis |
+| `tempo.stretch_backend` | pedalboard | Rubber Band quality via pip wheels. `rubberband_cli` and `phase_vocoder` are documented swap paths; only pedalboard is implemented | hypothesis |
 
 ## Render, session, evaluation
 
@@ -86,7 +86,7 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | --- | --- | --- | --- |
 | `render.sample_rate` / `channels` | 44100 / 2 | Preserve stereo at CD rate for mixing | hypothesis |
 | `render.output_bit_depth` | 16 | 16-bit PCM WAV plays everywhere, no second lossy encode | hypothesis |
-| `render.peak_ceiling_dbfs` | -1.0 | Headroom target; peaks above it are flagged | hypothesis |
+| `render.peak_ceiling_dbfs` | -1.0 | Headroom target; peaks above it are flagged. Peaks above unity are scaled into range so int16 does not wrap | hypothesis |
 | `session.default_length` | 6 | Enough transitions to judge a sequence, small enough to render quickly | hypothesis |
 | `session.selection_strategy` | greedy | Explainable baseline; lookahead is an M6 stretch only if greedy fails | hypothesis |
 | `evaluation.excerpt_seconds` | 15.0 | Context either side of a transition for blind rating | hypothesis |
