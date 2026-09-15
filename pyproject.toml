@@ -12,6 +12,8 @@ dependencies = [
     # Audio is handled as float32 PCM arrays from the decode boundary onwards.
     "librosa>=1.0.0",
     "numpy>=2.1",
+    # Pitch-preserving stretch via Rubber Band; GPLv3, see docs/licensing.md.
+    "pedalboard>=0.9.25",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",
     "pydantic-settings>=2.7",
@@ -63,7 +65,7 @@ warn_unused_configs = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["librosa", "librosa.*"]
+module = ["librosa", "librosa.*", "pedalboard", "pedalboard.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
