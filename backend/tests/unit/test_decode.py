@@ -14,7 +14,13 @@ from fixtures.audio import (
     write_wav,
 )
 
-from autodj.audio.decode import SourceError, SourceFailure, decode_to_mono, probe_source
+from autodj.audio.decode import (
+    SourceError,
+    SourceFailure,
+    decode_to_mono,
+    decode_to_pcm,
+    probe_source,
+)
 
 pytestmark = pytest.mark.usefixtures("require_ffmpeg")
 
@@ -55,6 +61,27 @@ def test_decode_returns_finite_mono_samples_at_the_requested_rate(tmp_path: Path
     assert samples.size == pytest.approx(2.0 * 22050, rel=0.1)
     assert bool(np.isfinite(samples).all())
     assert float(np.max(np.abs(samples))) > 0.01
+
+
+def test_decode_to_pcm_returns_stereo_frames(tmp_path: Path) -> None:
+    path = write_wav(tmp_path / "stereo.wav", seconds=1.0, sample_rate=22050, channels=2)
+
+    samples = decode_to_pcm(path, sample_rate=22050, channels=2)
+
+    assert samples.dtype == np.float32
+    assert samples.ndim == 2
+    assert samples.shape[1] == 2
+    assert samples.shape[0] == pytest.approx(22050, rel=0.1)
+
+
+def test_decode_to_pcm_resamples_to_the_requested_rate(tmp_path: Path) -> None:
+    path = write_wav(tmp_path / "native48k.wav", seconds=1.0, sample_rate=48000, channels=2)
+
+    samples = decode_to_pcm(path, sample_rate=44100, channels=2)
+
+    assert samples.ndim == 2
+    assert samples.shape[1] == 2
+    assert samples.shape[0] == pytest.approx(44100, abs=2000)
 
 
 def test_decode_can_be_limited_to_a_window(tmp_path: Path) -> None:

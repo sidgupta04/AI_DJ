@@ -81,7 +81,9 @@ def database_engine(postgres_admin_engine: Engine) -> Iterator[Engine]:
 def session_factory(database_engine: Engine) -> Iterator[sessionmaker[Session]]:
     """An empty set of tables for each test."""
     with database_engine.begin() as connection:
-        connection.execute(text("truncate table tracks, track_analysis restart identity cascade"))
+        connection.execute(
+            text("truncate table transitions, tracks, track_analysis restart identity cascade")
+        )
     yield build_session_factory(database_engine)
 
 

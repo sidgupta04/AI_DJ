@@ -57,19 +57,24 @@ def _enum_type_names(database_url: str) -> set[str]:
 def test_migration_applies_reverses_and_reapplies(scratch_database_url: str) -> None:
     _alembic("upgrade", scratch_database_url)
 
-    assert {"tracks", "track_analysis"} <= _table_names(scratch_database_url)
-    assert {"analysis_status", "metadata_source"} <= _enum_type_names(scratch_database_url)
+    assert {"tracks", "track_analysis", "transitions"} <= _table_names(scratch_database_url)
+    assert {"analysis_status", "metadata_source", "transition_status"} <= _enum_type_names(
+        scratch_database_url
+    )
 
     _alembic("downgrade", scratch_database_url)
 
     assert "tracks" not in _table_names(scratch_database_url)
     assert "track_analysis" not in _table_names(scratch_database_url)
+    assert "transitions" not in _table_names(scratch_database_url)
     # Enum types must go too, otherwise re-applying fails with "type already exists".
-    assert not {"analysis_status", "metadata_source"} & _enum_type_names(scratch_database_url)
+    assert not {"analysis_status", "metadata_source", "transition_status"} & _enum_type_names(
+        scratch_database_url
+    )
 
     _alembic("upgrade", scratch_database_url)
 
-    assert {"tracks", "track_analysis"} <= _table_names(scratch_database_url)
+    assert {"tracks", "track_analysis", "transitions"} <= _table_names(scratch_database_url)
 
 
 def test_schema_matches_the_models(scratch_database_url: str) -> None:
@@ -79,6 +84,9 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         tracks_columns = {column["name"] for column in inspect(engine).get_columns("tracks")}
         analysis_columns = {
             column["name"] for column in inspect(engine).get_columns("track_analysis")
+        }
+        transition_columns = {
+            column["name"] for column in inspect(engine).get_columns("transitions")
         }
     finally:
         engine.dispose()
@@ -120,6 +128,31 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         "energy_curve_hz",
         "energy_scalar",
         "stable_regions",
+        "created_at",
+        "updated_at",
+    }
+    assert transition_columns == {
+        "id",
+        "track_a_id",
+        "track_b_id",
+        "session_bpm",
+        "stretch_ratio",
+        "outgoing_start_beat",
+        "outgoing_end_beat",
+        "incoming_start_beat",
+        "incoming_end_beat",
+        "pair_cost",
+        "stability_cost",
+        "energy_cost",
+        "stretch_cost",
+        "position_cost",
+        "wav_path",
+        "peak_dbfs",
+        "peak_exceeded",
+        "clipped",
+        "status",
+        "failure_reason",
+        "config_snapshot",
         "created_at",
         "updated_at",
     }

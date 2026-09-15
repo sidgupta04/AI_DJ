@@ -17,7 +17,7 @@ durable context. A fresh agent should not need prior chat transcripts.
 | M2 | BPM and beat-grid analysis | complete |
 | M3 | Musical features and stable transition regions | complete |
 | M4 | Candidate selection and transition planning | complete |
-| M5 | Tempo/beat synchronization and audio rendering | not started |
+| M5 | Tempo/beat synchronization and audio rendering | complete |
 | M6 | Evaluation and algorithm improvements | not started |
 | M7 | DJ session runtime and demo application | not started |
 | M8 | Reliability, performance, and production polish | not started |

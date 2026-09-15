@@ -259,14 +259,49 @@ B has no pair in-window, the service walks the ranked list until one does.
 
 ## Tempo and phase alignment (M5)
 
-Not implemented yet. Planned: the seed track's native BPM is the initial V1 session-tempo
-default, not a permanent restriction. Constrain candidates first, then apply one constant
-pitch-preserving stretch via Rubber Band (`session_bpm / native_bpm`, bounded ±5%), then shift
-the incoming track so its chosen beat coincides with the outgoing beat. Tempo matching
-prevents drift; phase alignment starts the beats together. Continuous tempo ramps are out of
-scope.
+Turns an M4 `TransitionPlan` into aligned PCM. Each stem is stretched once, constantly,
+pitch-preserving, by `session_bpm / native_bpm`. The seed track's native BPM is the
+initial V1 session-tempo default; a later policy may pick a different constant. Continuous
+ramps are out of scope.
+
+```text
+stretch_ratio     = session_bpm / native_bpm          # per stem
+pedalboard factor = stretch_ratio                     # >1 is faster and shorter
+t'                = t / stretch_ratio                 # linear beat-grid remap
+```
+
+The renderer refuses a ratio outside `[tempo.min_stretch_ratio, tempo.max_stretch_ratio]`
+(±5%, the same hard bound M4 already applied). `rubberband_cli` and `phase_vocoder` remain
+documented swap paths behind `tempo.stretch_backend`; only `pedalboard` is implemented.
+
+The coincidence beat is the region's `start_beat`, or — when
+`transition.align_on_downbeat` is true — the first inferred 4/4 bar-phase boundary
+inside the region (`beat_index % 4 == 0`, treating beat 0 as bar 1). M2 does not
+detect true musical downbeats; this is grid/bar phase only. The incoming stem is
+delayed so those two beats share a mix sample; tempo matching then keeps them
+together for the rest of the overlap.
 
 ## Crossfade (M5)
 
-Not implemented yet. Planned: equal-power `cos`/`sin` gain pair over the transition, with peak
-measurement and clipping protection.
+Equal-power `cos` / `sin` over `transition.crossfade_beats` *intervals* at session
+tempo (32 beats = 32 inter-beat periods = 8 bars in 4/4), with `margin_beats` of
+outgoing audio before the fade and incoming audio after it. The fade is the
+half-open sample range `[align, align + fade_frames)`.
+
+```text
+T                 = crossfade_beats × 60 / session_bpm   # interval span, not N timestamps
+fade_frames       = round(T × sample_rate)
+u                 = 0 … 1 across fade_frames
+g_out(u)          = cos(π/2 × u)
+g_in(u)           = sin(π/2 × u)          # g_out² + g_in² = 1
+peak_dbfs         = 20 log10(max |mix|)
+peak_exceeded     = peak_dbfs > render.peak_ceiling_dbfs
+clipped           = peak > 1 before protection
+```
+
+If the unprotected peak exceeds unity the mix is scaled into `[-1, 1]` so int16 does not
+wrap. Peaks between the ceiling (−1 dBFS) and unity are flagged, not scaled. The WAV is
+16-bit PCM stereo at `render.sample_rate`, written under `AUTODJ_RENDER_CACHE_DIR/transitions/`
+via a sibling `.tmp` then rename so a crash cannot leave a truncated published file.
+A `transitions` row is marked `RENDERED` only after that rename succeeds; failures store
+`FAILED` with no `wav_path` and discard any partial attempt.

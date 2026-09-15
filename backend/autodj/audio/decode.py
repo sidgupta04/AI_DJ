@@ -160,14 +160,21 @@ def _parse_positive_int(value: Any) -> int | None:
     return parsed if parsed > 0 else None
 
 
-def decode_to_mono(
+def decode_to_pcm(
     path: Path,
     *,
     sample_rate: int,
+    channels: int = 1,
     max_seconds: float | None = None,
     timeout: float = 120.0,
 ) -> np.ndarray:
-    """Decode to mono float32 PCM at ``sample_rate``, optionally only the first seconds."""
+    """Decode to float32 PCM at ``sample_rate``.
+
+    Mono (``channels=1``) returns shape ``(n_samples,)``. More than one channel
+    returns interleaved frames as ``(n_samples, channels)``.
+    """
+    if channels < 1:
+        raise ValueError("channels must be at least 1")
     command = [
         FFMPEG,
         "-v",
@@ -178,7 +185,7 @@ def decode_to_mono(
         "-map",
         "0:a:0",
         "-ac",
-        "1",
+        str(channels),
         "-ar",
         str(sample_rate),
     ]
@@ -195,4 +202,28 @@ def decode_to_mono(
         raise SourceError(SourceFailure.EMPTY_AUDIO, "decoder produced no samples")
     if not bool(np.isfinite(samples).all()):
         raise SourceError(SourceFailure.NON_FINITE_SAMPLES, "decoded audio contains NaN or Inf")
-    return samples
+    if channels == 1:
+        return samples
+    if samples.size % channels != 0:
+        raise SourceError(
+            SourceFailure.DECODE_FAILED,
+            f"decoded sample count {samples.size} is not divisible by {channels} channels",
+        )
+    return samples.reshape(-1, channels)
+
+
+def decode_to_mono(
+    path: Path,
+    *,
+    sample_rate: int,
+    max_seconds: float | None = None,
+    timeout: float = 120.0,
+) -> np.ndarray:
+    """Decode to mono float32 PCM at ``sample_rate``, optionally only the first seconds."""
+    return decode_to_pcm(
+        path,
+        sample_rate=sample_rate,
+        channels=1,
+        max_seconds=max_seconds,
+        timeout=timeout,
+    )

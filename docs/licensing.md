@@ -20,17 +20,17 @@ project.
 
 ## Swapping the stretch backend
 
-`tempo.stretch_backend` selects the implementation behind the `TimeStretcher` interface
-(introduced in M5). Planned options:
+`tempo.stretch_backend` selects the implementation behind the `TimeStretcher` interface.
+Only `pedalboard` is implemented in M5:
 
 | Backend | Library | License | Notes |
 | --- | --- | --- | --- |
 | `pedalboard` | `pedalboard` (Rubber Band) | GPLv3 | Default. Best quality, pip wheels, stereo float32. |
-| `rubberband_cli` | `pyrubberband` + `rubberband` CLI | GPLv2+ | Same engine as a subprocess; needs a system package. |
-| `phase_vocoder` | `librosa` | ISC | Permissive fallback; audibly worse at larger ratios. Kept as the comparison baseline in an M5/M6 quality experiment if one is needed. |
+| `rubberband_cli` | `pyrubberband` + `rubberband` CLI | GPLv2+ | Same engine as a subprocess; needs a system package. Not implemented. |
+| `phase_vocoder` | `librosa` | ISC | Permissive fallback; audibly worse at larger ratios. Not implemented. |
 
 Choosing `phase_vocoder` and removing the `pedalboard` dependency is what a permissive relicensing
-would require. Keep that path working.
+would require. Keep that path documented.
 
 ## Third-party licenses in use
 
@@ -43,10 +43,11 @@ would require. Keep that path working.
 | structlog | MIT / Apache-2.0 | Structured logging |
 | ffmpeg (external binary) | LGPL/GPL depending on build | Decoding, invoked as a subprocess |
 | librosa | ISC | Offline onset envelope and dynamic-programming beat tracking |
+| pedalboard | GPLv3 | Pitch-preserving time stretch (Rubber Band) |
 
 `librosa` is the beat tracker specified for M2. It is permissive (ISC) and does not change
-the project's GPLv3 obligation, which still comes from the planned Rubber Band / `pedalboard`
-link. It pulls a scientific Python stack (numpy, scipy, numba, scikit-learn, soundfile, soxr)
-under BSD/MIT-style licenses. No other DSP library was added.
+the project's GPLv3 obligation, which comes from Rubber Band / `pedalboard`.
+It pulls a scientific Python stack (numpy, scipy, numba, scikit-learn, soundfile, soxr)
+under BSD/MIT-style licenses.
 
 Adding a dependency means adding it here with its license and role.
