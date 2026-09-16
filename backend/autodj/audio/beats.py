@@ -5,7 +5,8 @@ derived from that grid. No files, no database: the service layer decodes and per
 
 BPM is the median inter-beat interval of the chosen grid, not librosa's global tempo
 estimate. Octave errors (half-time / double-time) are resolved by scoring 0.5x / 1x / 2x
-candidates against the onset envelope and keeping the one whose beats land on onsets
+candidates inside the configured BPM band against the onset envelope and keeping the one
+whose beats land on onsets
 without also landing on the midpoints. ``start_bpm`` is a weak prior: it seeds librosa's
 tempo estimator and breaks exact octave-score ties. It does not pull a clearly better
 grid toward 124. See ``docs/algorithms.md``.
@@ -243,7 +244,7 @@ def _choose_octave(
     min_bpm: float,
     max_bpm: float,
 ) -> _GridCandidate:
-    """Pick 0.5x, 1x or 2x of the raw grid by onset alignment, then apply the BPM band."""
+    """Pick the highest-scoring 0.5x, 1x or 2x grid inside the inclusive BPM band."""
     measured_bpm = _bpm_from_times(beat_times)
     candidates = [
         _evaluate_grid(
@@ -255,17 +256,16 @@ def _choose_octave(
         )
         for factor, times in _octave_grids(beat_times)
     ]
-    best = _preferred_octave(candidates, start_bpm=start_bpm)
-    if not (min_bpm <= best.bpm <= max_bpm):
-        in_range = [item.bpm for item in candidates if min_bpm <= item.bpm <= max_bpm]
-        extra = f"; in-range alternatives: {in_range}" if in_range else ""
+    in_range = [item for item in candidates if min_bpm <= item.bpm <= max_bpm]
+    if not in_range:
+        best = _preferred_octave(candidates, start_bpm=start_bpm)
         raise BeatTrackingError(
             AnalysisFailure.TEMPO_OUT_OF_RANGE,
             f"best-scoring tempo is {best.bpm:.2f} BPM "
             f"(raw grid {measured_bpm:.2f} x {best.octave_factor:g}), "
-            f"outside [{min_bpm:g}, {max_bpm:g}]{extra}",
+            f"outside [{min_bpm:g}, {max_bpm:g}]; no in-range octave candidate",
         )
-    return best
+    return _preferred_octave(in_range, start_bpm=start_bpm)
 
 
 def _preferred_octave(candidates: Sequence[_GridCandidate], *, start_bpm: float) -> _GridCandidate:

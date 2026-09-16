@@ -45,10 +45,9 @@ analysis:
   # override a grid whose onset lock is better, even if that grid is farther
   # from 124.
   start_bpm: 124.0
-  # Tempos below this are treated as half-time of a house pulse; the natural tempo is
-  # rejected if that half-time grid scores better than the doubled one.
+  # Inclusive candidate band: score only eligible octaves; selected grids still pass all gates.
   min_bpm: 80.0
-  # Tempos above this are treated as double-time. 4/4 house/techno rarely exceeds this.
+  # Exclude faster candidates before selecting; an eligible half-time alternative can win.
   max_bpm: 180.0
   # IBI statistics need a few bars; fewer beats than this is not a usable grid.
   min_beats: 16
