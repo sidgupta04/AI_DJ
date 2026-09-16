@@ -33,6 +33,19 @@ class Base(DeclarativeBase):
     pass
 
 
+class DJSession(Base):
+    """A pre-rendered set and its immutable playback timeline/configuration."""
+
+    __tablename__ = "dj_sessions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AnalysisStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
