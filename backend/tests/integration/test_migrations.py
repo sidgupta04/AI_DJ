@@ -63,7 +63,9 @@ def _enum_type_names(database_url: str) -> set[str]:
 def test_migration_applies_reverses_and_reapplies(scratch_database_url: str) -> None:
     _alembic("upgrade", scratch_database_url)
 
-    assert {"tracks", "track_analysis", "transitions"} <= _table_names(scratch_database_url)
+    assert {"tracks", "track_analysis", "transitions", "dj_sessions"} <= _table_names(
+        scratch_database_url
+    )
     assert {"analysis_status", "metadata_source", "transition_status"} <= _enum_type_names(
         scratch_database_url
     )
@@ -73,6 +75,7 @@ def test_migration_applies_reverses_and_reapplies(scratch_database_url: str) -> 
     assert "tracks" not in _table_names(scratch_database_url)
     assert "track_analysis" not in _table_names(scratch_database_url)
     assert "transitions" not in _table_names(scratch_database_url)
+    assert "dj_sessions" not in _table_names(scratch_database_url)
     # Enum types must go too, otherwise re-applying fails with "type already exists".
     assert not {"analysis_status", "metadata_source", "transition_status"} & _enum_type_names(
         scratch_database_url

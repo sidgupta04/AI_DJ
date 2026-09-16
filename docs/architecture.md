@@ -187,7 +187,41 @@ rows remain unmeasured. No-plan failures are included in report denominators wit
 a plan to satisfy the transition table's required foreign keys. Source audio remains read-only.
 No session loop, session endpoints, UI or lookahead were introduced.
 
-## Scaling
+## Session runtime and demo (M7)
+
+`SessionService` loads only COMPLETE current-version tracks and their real title/artist metadata.
+It composes the existing pure retrieve/rank/plan functions with a fixed seed tempo and an
+unplayed set (session repeats are always disabled). Every admitted track is decoded and
+stretched once. `render.session.append_transition` joins the retained body, the M5 equal-power
+fade, and the next track's tail. It refuses truncated overlaps and exits before the preceding
+crossfade finishes; source/grid offsets map all subsequent transitions into one continuous WAV.
+Global peak protection is applied once to the assembled set. Offline analysis is never invoked.
+
+The new `dj_sessions` table stores `RENDERING` then `READY`/`PARTIAL`/`FAILED`, the ordered
+track/transition timeline, selected regions and costs, failure/stop reason, and configuration
+snapshot without DB credentials. It does not repurpose M6's independent transition-excerpt rows.
+The API exposes `POST /sessions`, `GET /sessions/{id}`, `GET /sessions/{id}/audio`, plus a thin
+`GET /tracks` seed picker. All repository and renderer composition remains in services.
+Only UUID identifiers address session WAVs; unavailable/unready audio produces 404/409.
+The CLI is `scripts/run_session.py`. Schema upgrade/downgrade is Alembic revision `a7c401d90ef2`.
+
+The one-screen React/Vite frontend uses the API timeline and native HTML audio time to derive
+current/next/played state, including after seeks. Outgoing remains current until the fade ends.
+Manrope is bundled locally; charcoal surfaces, lime accents, a split deck/transition layout,
+semantic controls, visible focus, text state labels, and a reduced-motion override keep the
+screen compact and accessible. Below 700px the decks stack in workflow order. It contains no
+invented waveforms, artwork, analytics, or metadata. Vite proxies to the API on the same origin.
+
+Limits: local single-user synchronous pre-render; no job queue, cancellation, streaming,
+auth, automatic recovery, or concurrent render scheduling. Memory grows with set duration
+(maximum 12 tracks by default). A process crash can leave `RENDERING`; rebuild that session.
+An exhausted compatible library yields a labeled shorter set only if at least one transition
+exists. Decode/render failures fail the set and remove its new WAV. Final DB write failures
+also remove the published WAV. Existing M2 confidence and grid limitations still apply.
+Manual visual/browser smoke validation was blocked by the browser client's localhost policy;
+synthetic API/PCM integration and React component tests cover executable behavior.
+
+## Scaling notes
 
 The working library is about 150–200 tracks. At that size, PostgreSQL filters on analysis
 status, `native_bpm`, and energy are enough; there is no ANN or vector index in V1.
@@ -206,7 +240,7 @@ milestone. See `docs/roadmap.md`.
 - M4 candidate selection and transition planning — complete
 - M5 tempo/beat sync and audio rendering — complete
 - M6 evaluation tooling and synthetic experiments — complete; owner listening follow-up pending
-- M7 DJ session runtime and demo application — not started
+- M7 DJ session runtime and demo application — complete
 - M8 reliability, performance, and polish — not started
 
 The authoritative plan, including the old 16-step mapping, is `docs/roadmap.md`. Sections

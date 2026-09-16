@@ -217,7 +217,14 @@ class RenderSettings(ConfigSection):
 
 class SessionSettings(ConfigSection):
     default_length: int = Field(ge=2)
+    max_length: int = Field(ge=2)
     selection_strategy: Literal["random", "nearest_bpm", "greedy", "beam"]
+
+    @model_validator(mode="after")
+    def validate_length(self) -> Self:
+        if self.default_length > self.max_length:
+            raise ValueError("session.default_length must not exceed session.max_length")
+        return self
 
 
 class EvaluationSettings(ConfigSection):

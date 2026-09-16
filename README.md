@@ -7,7 +7,7 @@ renders equal-power crossfades while recording latency and transition-quality me
 
 V1 targets a controlled library of roughly 100 house/electronic tracks in steady 4/4.
 
-**Status: M6 complete — evaluation tooling and synthetic experiments; listener follow-up pending.**
+**Status: M7 complete — pre-rendered sessions, API, CLI, and React session desk.**
 Offline analysis plus retrieve / rank / plan, then a constant pitch-preserving stretch,
 beat alignment, and equal-power WAV. The authoritative plan is `docs/roadmap.md`;
 see `AGENTS.md` for the one-milestone-per-run working agreement.
@@ -115,7 +115,45 @@ Compares random, nearest-BPM, BPM+energy, and full-planner strategies. Reports m
 alignment, energy discontinuity, stretch, stability, failures and latency distributions.
 Exports seeded blind B/D excerpts on identical track pairs, plus a separate codebook and empty
 listener rating sheet. See `docs/evaluation.md` for the protocol, results and limitations.
-Synthetic evidence did not justify changing production defaults. M7 sessions/UI remain unstarted.
+Synthetic evidence did not justify changing production defaults. M6 listener follow-up remains.
+
+## Running a DJ session (M7)
+
+First apply migrations and ingest/analyze a compatible library as above. Runtime never analyzes
+audio. Default length is six distinct tracks; the seed's BPM remains constant throughout.
+
+```bash
+uv run alembic upgrade head
+uv run python scripts/run_session.py --track-id 1 --length 6
+uv run uvicorn autodj.api.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+In another terminal (Node 22.12+):
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`, choose a seed and length, then **Build session**. Press Play
+when rendering completes. Native audio controls provide seek and volume; running-order rows
+seek to each track's entrance. `?session=<UUID>` restores a stored session. The Vite proxy
+forwards `/tracks`, `/sessions`, and `/health` to the local API; production assets are generated
+with `npm run build` (serve behind a same-origin proxy for the API). No public deployment is added.
+
+API: `GET /tracks`, `POST /sessions` with `{"seed_track_id":1,"length":6}`,
+`GET /sessions/{id}`, and `GET /sessions/{id}/audio` (WAV with byte-range seeking).
+Creation is synchronous and can take minutes. Status is `READY`, `PARTIAL` (a playable shorter
+set with at least two tracks), or `FAILED` with a persisted reason and no audio URL.
+WAVs live under `render_cache/sessions/`; session timelines/configuration live in `dj_sessions`.
+
+Smoke checks: create a three-track set, seek into and past both crossfades, verify deck titles,
+session BPM, stretch and history; reload its session URL. Request more tracks than available to
+see the partial-set message. Check keyboard Tab/Enter/Space, 390px and desktop layouts, and
+reduced-motion preferences. See `docs/architecture.md` for local-demo limits.
+
+Frontend validation: `npm run format:check`, `npm test`, `npm run build` from `frontend/`.
 
 ## Checks
 

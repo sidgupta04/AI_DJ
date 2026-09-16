@@ -1,0 +1,26 @@
+{
+  "name": "autodj-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "test": "vitest run",
+    "format:check": "prettier --check src vite.config.js index.html package.json"
+  },
+  "dependencies": {
+    "@fontsource/manrope": "^5.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.9.7",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11"
+  }
+}
