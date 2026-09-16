@@ -20,17 +20,17 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 
 | Parameter | Default | Reason | Status |
 | --- | --- | --- | --- |
-| `analysis.version` | 2 | Feature-format version; bumping it invalidates stored features. Version 2 adds the energy curve and stable regions; M2 (version 1) rows are reprocessed automatically | hypothesis |
+| `analysis.version` | 4 | Confidence-acceptance calibration after real-audio click-grid review; completed version 1/2/3 rows are stale and reprocessed automatically; FAILED rows need an explicit retry | policy version |
 | `analysis.sample_rate` | 22050 | Beat precision follows the onset-envelope frame rate. 44.1 kHz halves that frame period and roughly halves timing error, but BPM error is already < 0.3 after refinement at 22.05 kHz; see `docs/experiments.md` | measured |
 | `analysis.hop_length` | 512 | 23.2 ms frames, the standard librosa beat-tracking grid | hypothesis |
 | `analysis.refine_hop_length` | 256 | 11.6 ms envelope for sub-frame beat refinement | hypothesis |
 | `analysis.start_bpm` | 124 | Weak house prior: seeds librosa's tempo estimator and breaks exact octave-score ties. Does not override a better-scoring grid farther from 124 | hypothesis |
-| `analysis.min_bpm` | 80 | Below this, a grid is half-time of a house pulse and is rejected if that is the best-scoring octave | hypothesis |
-| `analysis.max_bpm` | 180 | Above this, a grid is double-time; 4/4 house/techno rarely exceeds this | hypothesis |
+| `analysis.min_bpm` | 80 | Inclusive lower bound on octave candidates before score selection; eligible doubled alternatives still face quality gates | hypothesis |
+| `analysis.max_bpm` | 180 | Inclusive upper bound on octave candidates before score selection; eligible half-time alternatives can win | hypothesis |
 | `analysis.min_beats` | 16 | Four bars; fewer IBIs make CV and median tempo unstable | hypothesis |
 | `analysis.max_ibi_cv` | 0.12 | Whole-track CV gate, looser than `stable_regions.ibi_cv_max` because intros and outros are included. Also the zero-point of `tempo_regularity` | hypothesis |
 | `analysis.min_onset_contrast` | 0.15 | Beats must be stronger than midpoints. In-memory white noise scores ~0.13 | hypothesis |
-| `analysis.min_confidence` | 0.25 | Floor on the heuristic quality score (regularity × contrast), not a probability. Separate gates can both barely pass (resampled noise: product 0.05); click tracks sit above 0.6 | hypothesis |
+| `analysis.min_confidence` | 0.225 | Floor on the unchanged heuristic quality score (regularity × contrast), not a probability. Click-grid review admitted locked Super Bass (0.236) while retaining rejection of audibly drifting Levels (0.181) and Shiver (0.101); resampled noise remains around 0.05 | measured, small real-audio sample |
 | `analysis.refine_search_radius_frames` | 2 | ±2 fine frames is ±23 ms, one coarse frame, well inside a house beat | hypothesis |
 
 ## Energy
@@ -63,7 +63,7 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | `retrieval.max_energy_delta` | 0.25 | Drops obviously mismatched candidates before ranking. Relaxation drops this gate only | hypothesis |
 | `retrieval.energy_filter_enabled` | true | Lets a set continue when every remaining track is an energy jump | hypothesis |
 | `tempo.min/max_stretch_ratio` (retrieval) | 0.95 / 1.05 | Sole tempo gate. Replaces the dropped `max_bpm_deviation_pct` / `relaxed_bpm_deviation_pct` (7% exceeded this bound) | hypothesis |
-| `ranking.weight_tempo` | 0.60 | Chosen prior: tempo > energy >> analysis confidence | hypothesis (M6 sweep and human check) |
+| `ranking.weight_tempo` | 0.60 | Chosen prior: tempo > energy >> analysis confidence; M6 synthetic evidence does not justify retuning | hypothesis (library/listener follow-up) |
 | `ranking.weight_energy` | 0.35 | As above | hypothesis |
 | `ranking.weight_quality` | 0.05 | Small tie-breaking penalty for low-confidence analysis | hypothesis |
 
@@ -91,3 +91,17 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | `session.selection_strategy` | greedy | Explainable baseline; lookahead is an M6 stretch only if greedy fails | hypothesis |
 | `evaluation.excerpt_seconds` | 15.0 | Context either side of a transition for blind rating | hypothesis |
 | `evaluation.pair_count` | 60 | Makes a paired sign test meaningful for a ~65/35 split | hypothesis |
+| `evaluation.seed` | 20260915 | Repeatable candidate order and blind X/Y assignment | reproducibility |
+| `evaluation.onset_hop_ms` | 5.0 | Positive block-RMS differences resolve small phase errors without another beat tracker | hypothesis |
+| `evaluation.alignment_max_lag_ms` | 200.0 | Bounded onset-correlation search, additionally limited to less than half a session beat | hypothesis |
+| `evaluation.alignment_min_correlation` | 0.1 | Weak evidence becomes unavailable; never reported as zero alignment error | hypothesis |
+| `evaluation.energy_window_seconds` | 1.0 | Local RMS at either end of the mixed overlap; shortened equally to avoid overlapping windows | hypothesis |
+| `evaluation.silence_floor_dbfs` | -90.0 | Finite RMS floor and rejection of effectively silent onset envelopes | hypothesis |
+| `evaluation.minimum_listeners` | 3 | Required ratings per pair before inclusion in the preference sign test | protocol |
+
+Evaluation instrumentation does not alter stored track features. The approved octave-policy
+and confidence-acceptance changes do: `analysis.version` is now 4 and version 1/2/3 analyses
+need reprocessing.
+Environment overrides allow controlled weight comparisons;
+use a new evaluation output directory for each snapshot. Model C normalizes the configured
+tempo/energy weights by their sum and drops the quality term; Model D retains the M4 weights.

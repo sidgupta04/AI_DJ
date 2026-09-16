@@ -7,7 +7,7 @@ renders equal-power crossfades while recording latency and transition-quality me
 
 V1 targets a controlled library of roughly 100 house/electronic tracks in steady 4/4.
 
-**Status: Milestone 5 of 9 — tempo/beat synchronization and audio rendering (complete).**
+**Status: M6 complete — evaluation tooling and synthetic experiments; listener follow-up pending.**
 Offline analysis plus retrieve / rank / plan, then a constant pitch-preserving stretch,
 beat alignment, and equal-power WAV. The authoritative plan is `docs/roadmap.md`;
 see `AGENTS.md` for the one-milestone-per-run working agreement.
@@ -67,8 +67,11 @@ Each pending track is decoded to mono PCM at `analysis.sample_rate` and run thro
 beat tracking, an energy curve (RMS and onset each mapped to `[0, 1]` before they are mixed),
 and 32-beat stable-region detection. `native_bpm`, `analysis_confidence`, `energy` and
 `analysis_version` are stored on `tracks`; the beat timestamps, 10 Hz energy curve, and
-regions go in `track_analysis`. `analysis.version` is 2; M2 rows (version 1) are reprocessed
-automatically. A tempo with no mixable window is recorded as `FAILED` with
+regions go in `track_analysis`. `analysis.version` is 4: select the best octave inside
+80–180 BPM, then apply refinement and quality gates with the real-audio-calibrated 0.225
+confidence floor. Completed version 1/2/3 rows are reprocessed automatically; retry FAILED
+rows with `--reanalyze` or a specific `--path`.
+A tempo with no mixable window is recorded as `FAILED` with
 `NO_STABLE_REGION`. See `docs/algorithms.md`.
 
 Energy aggregation (median vs mean vs p90) and region-gate calibration were measured on
@@ -99,6 +102,20 @@ Plans the next mix, then stretches both stems by `session_bpm / native_bpm` (Rub
 via pedalboard), aligns the chosen beats, equal-power crossfades, and writes a 16-bit
 stereo WAV under `AUTODJ_RENDER_CACHE_DIR`. Peak and clip flags are stored on a
 `transitions` row. See `docs/algorithms.md`.
+
+## Evaluating transitions (M6)
+
+```bash
+uv run alembic upgrade head
+uv run python scripts/evaluate_library.py --output render_cache/eval-001 --analyze
+uv run python scripts/experiment_evaluation.py --output render_cache/synthetic-eval-001
+```
+
+Compares random, nearest-BPM, BPM+energy, and full-planner strategies. Reports measured onset
+alignment, energy discontinuity, stretch, stability, failures and latency distributions.
+Exports seeded blind B/D excerpts on identical track pairs, plus a separate codebook and empty
+listener rating sheet. See `docs/evaluation.md` for the protocol, results and limitations.
+Synthetic evidence did not justify changing production defaults. M7 sessions/UI remain unstarted.
 
 ## Checks
 
