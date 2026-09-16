@@ -150,7 +150,7 @@ class SelectionService:
             rows = repository.list_candidates(
                 analysis_version=self._settings.analysis.version,
             )
-        return [_row_to_candidate(row) for row in rows]
+        return [candidate_from_row(row) for row in rows]
 
 
 def _find_track(candidates: list[TrackCandidate], track_id: int) -> TrackCandidate | None:
@@ -160,7 +160,7 @@ def _find_track(candidates: list[TrackCandidate], track_id: int) -> TrackCandida
     return None
 
 
-def _row_to_candidate(row: dict[str, object]) -> TrackCandidate:
+def candidate_from_row(row: dict[str, object]) -> TrackCandidate:
     """Convert a repository dict to a pure dataclass."""
     raw_regions = row["stable_regions"]
     assert isinstance(raw_regions, list)

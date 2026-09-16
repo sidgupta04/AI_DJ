@@ -41,6 +41,10 @@ def render_transition(
     margin_beats: int,
     align_on_downbeat: bool,
     peak_ceiling_dbfs: float,
+    outgoing_start_seconds: float | None = None,
+    incoming_start_seconds: float | None = None,
+    context_seconds: float | None = None,
+    retain_overlap: bool = False,
 ) -> RenderedMix:
     """Stretch both stems, align the chosen beats, and equal-power crossfade.
 
@@ -88,8 +92,17 @@ def render_transition(
 
     align_a_sample = _seconds_to_samples(float(beats_a[align_a]), sample_rate)
     align_b_sample = _seconds_to_samples(float(beats_b[align_b]), sample_rate)
+    # M6 edge baselines use explicit positions on the stretched timeline, with no beat snap.
+    if outgoing_start_seconds is not None:
+        align_a_sample = _seconds_to_samples(outgoing_start_seconds, sample_rate)
+    if incoming_start_seconds is not None:
+        align_b_sample = _seconds_to_samples(incoming_start_seconds, sample_rate)
+    if align_a_sample < 0 or align_b_sample < 0:
+        raise RenderError(RenderFailure.INSUFFICIENT_AUDIO, "negative fade position")
     fade_samples = _beats_to_samples(crossfade_beats, session_bpm, sample_rate)
     margin_samples = _beats_to_samples(margin_beats, session_bpm, sample_rate)
+    if context_seconds is not None:
+        margin_samples = max(0, _seconds_to_samples(context_seconds, sample_rate))
 
     available_fade = min(
         audio_a.shape[0] - align_a_sample,
@@ -133,6 +146,8 @@ def render_transition(
         stretch_ratio_b=stretch_b,
         fade_start_sample=pre_samples,
         fade_frames=fade_samples,
+        outgoing_overlap=outgoing_fade.copy() if retain_overlap else None,
+        incoming_overlap=incoming_fade.copy() if retain_overlap else None,
     )
 
 

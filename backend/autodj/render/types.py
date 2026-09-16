@@ -54,3 +54,5 @@ class RenderedMix:
     stretch_ratio_b: float
     fade_start_sample: int
     fade_frames: int
+    outgoing_overlap: np.ndarray | None = None
+    incoming_overlap: np.ndarray | None = None

@@ -22,9 +22,15 @@ def scratch_database_url(postgres_admin_engine: Engine) -> Iterator[str]:
         yield url
 
 
-def _alembic(command: str, database_url: str) -> None:
+def _alembic(command: str, database_url: str, target: str | None = None) -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "alembic", command, "head" if command == "upgrade" else "base"],
+        [
+            sys.executable,
+            "-m",
+            "alembic",
+            command,
+            target or ("head" if command == "upgrade" else "base"),
+        ],
         cwd=REPO_ROOT,
         env={**os.environ, "AUTODJ_DATABASE_URL": database_url},
         capture_output=True,
@@ -132,6 +138,19 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         "updated_at",
     }
     assert transition_columns == {
+        "strategy",
+        "evaluation",
+        "bpm_delta",
+        "stretch_percent_a",
+        "stretch_percent_b",
+        "alignment_error_ms",
+        "alignment_correlation",
+        "energy_discontinuity_db",
+        "region_stability_a",
+        "region_stability_b",
+        "planning_seconds",
+        "render_seconds",
+        "measurement_seconds",
         "id",
         "track_a_id",
         "track_b_id",
@@ -156,3 +175,41 @@ def test_schema_matches_the_models(scratch_database_url: str) -> None:
         "created_at",
         "updated_at",
     }
+
+
+def test_m6_upgrade_leaves_historical_measurements_null(scratch_database_url: str) -> None:
+    _alembic("upgrade", scratch_database_url, "e7b2c91d4a08")
+    engine = create_engine(scratch_database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("""
+                insert into tracks (
+                    id, audio_path, content_hash, title, metadata_source, analysis_status
+                )
+                values (1, 'old-a.wav', 'abc', 'A', 'filename', 'COMPLETE'),
+                       (2, 'old-b.wav', 'def', 'B', 'filename', 'COMPLETE')
+            """)
+            )
+            connection.execute(
+                text("""
+                insert into transitions (
+                    track_a_id, track_b_id, session_bpm, stretch_ratio,
+                    outgoing_start_beat, outgoing_end_beat, incoming_start_beat, incoming_end_beat,
+                    pair_cost, stability_cost, energy_cost, stretch_cost, position_cost,
+                    peak_exceeded, clipped, status, config_snapshot
+                ) values (1, 2, 120, 1, 0, 32, 0, 32, 0, 0, 0, 0, 0,
+                          false, false, 'RENDERED', '{}')
+            """)
+            )
+        _alembic("upgrade", scratch_database_url)
+        with engine.connect() as connection:
+            row = connection.execute(
+                text("select status, alignment_error_ms, strategy, evaluation from transitions")
+            ).one()
+            assert tuple(row) == ("RENDERED", None, None, None)
+        _alembic("downgrade", scratch_database_url, "e7b2c91d4a08")
+        with engine.connect() as connection:
+            assert connection.scalar(text("select count(*) from transitions")) == 1
+    finally:
+        engine.dispose()

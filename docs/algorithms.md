@@ -76,10 +76,13 @@ That proposal is quantized to the hop, so two further steps recover a tempo a DJ
    `score = mean(onset at beats) * max(0, onset_contrast)`, where
    `onset_contrast = (μ_on − μ_off) / (μ_on + μ_off)` and `μ_off` is the mean envelope at the
    midpoints between beats. Contrast kills half-time (the dropped beats become strong off-beats).
-   Mean-onbeat kills double-time (half the inserted beats land on silence). The highest-scoring
-   candidate wins; `start_bpm` breaks only exact ties, as above. If that winner lies outside
-   `[min_bpm, max_bpm]`, analysis fails with `TEMPO_OUT_OF_RANGE` rather than silently folding
-   a slow pulse into the house band.
+   Mean-onbeat penalizes double-time when inserted beats land on silence. Exclude candidates
+   outside the inclusive `[min_bpm, max_bpm]` band before selecting the highest-scoring
+   remaining candidate; `start_bpm` breaks only exact ties. No in-range candidate means
+   `TEMPO_OUT_OF_RANGE`. An out-of-range global winner cannot veto an eligible alternative:
+   123 versus 246 selects 123; 152 versus 304 selects 152. This version-3 policy intentionally
+   supersedes M2's global-winner-then-reject policy. A 62 BPM pulse may select its 124 BPM
+   alternative, but the selected grid must still pass refinement and every quality gate.
 3. **Sub-frame refinement.** Each surviving beat is moved to the peak of a second onset
    envelope computed at `refine_hop_length` (256 samples, 11.6 ms), searching
    `refine_search_radius_frames` on either side. A 3-point parabola through that peak,
@@ -111,12 +114,16 @@ sits on the beats and not between them, and 0 when beats and midpoints are inter
 The product is high only when both are true. A perfectly regular grid on noise has low
 contrast; a strongly pulsed but wandering performance has low regularity.
 
+The current acceptance floor is `min_confidence = 0.225`. It was calibrated by real-audio
+click-grid review; it changes only whether an already-scored grid is accepted, not this formula
+or either component gate.
+
 Hard failures (no BPM is stored):
 
 | Reason | When |
 | --- | --- |
 | `TOO_FEW_BEATS` | librosa returned fewer than 2 beats, or the refined grid has fewer than `min_beats` |
-| `TEMPO_OUT_OF_RANGE` | the best-scoring octave is outside `[min_bpm, max_bpm]` |
+| `TEMPO_OUT_OF_RANGE` | no octave candidate is in `[min_bpm, max_bpm]`, or refinement moves the selected tempo outside that band |
 | `IRREGULAR_BEAT_GRID` | refined `ibi_cv` exceeds `max_ibi_cv` |
 | `WEAK_ONSET_ALIGNMENT` | refined onset contrast is below `min_onset_contrast` |
 | `LOW_CONFIDENCE` | quality score is below `min_confidence` even though the two factors cleared their own gates |
@@ -135,7 +142,7 @@ passage (`NO_STABLE_REGION`).
 Parameters: `analysis.sample_rate`, `hop_length`, `refine_hop_length`, `start_bpm`, `min_bpm`,
 `max_bpm`, `min_beats`, `max_ibi_cv`, `min_onset_contrast`, `min_confidence`,
 `refine_search_radius_frames`. Changing any of these, or the octave / refinement / confidence
-formulae, requires bumping `analysis.version` and reprocessing stored grids.
+formula / acceptance floor, requires bumping `analysis.version` and reprocessing stored grids.
 
 ## Energy (M3)
 
@@ -305,3 +312,80 @@ wrap. Peaks between the ceiling (−1 dBFS) and unity are flagged, not scaled. T
 via a sibling `.tmp` then rename so a crash cannot leave a truncated published file.
 A `transitions` row is marked `RENDERED` only after that rename succeeds; failures store
 `FAILED` with no `wav_path` and discard any partial attempt.
+
+## Evaluation model ladder (M6)
+
+Evaluation is an offline service; no session state machine or new runtime analysis is added.
+All strategies load the same COMPLETE, current-version library rows and exclude self-transitions.
+The current track's native BPM is the constant tempo for each independent trial. Every strategy
+respects the same hard stretch bound and uses the M5 pitch-preserving stretcher, equal-power
+fade, PCM writer and peak protection.
+
+- A: seeded shuffle of candidates within the hard bound, without energy/region filtering.
+- B: nearest session BPM, ties by track ID; same candidate pool as A.
+- C: the M4 tempo and energy costs weighted by `w_tempo / (w_tempo + w_energy)` and
+  `w_energy / (w_tempo + w_energy)`; no quality term or energy/region gate.
+- D: the existing M4 retrieval, three-term ranking, pair planner and M5 alignment.
+
+A/B/C use fixed time positions on the stretched timeline, without beat snapping:
+`T = crossfade_beats * 60 / session_bpm`, `M = margin_beats * 60 / session_bpm`,
+outgoing start = `max(0, outgoing_duration - T - M)`, incoming start = `M`.
+The outgoing track is unstretched in these trials. Baseline plan beat indices are sentinel
+`[0,1)` values, not stable windows; their region metric columns are null. Exact time offsets
+are retained in the evaluation JSON. Baseline cost fields are zero placeholders and must not
+be compared to D's planner costs. The evaluation requires a full overlap, refusing shortened
+fades as `INSUFFICIENT_AUDIO`.
+
+The ladder measures the complete production D policy, including its quality term and energy
+gate; it is not a one-variable C-to-D ablation. Paired blind B/D trials override next-track
+selection to hold both track IDs fixed, isolating transition placement/alignment as a bundle.
+
+## Measured metrics (M6)
+
+`autodj.metrics` uses numpy and plain values. The service passes actual unfaded, stretched
+overlap arrays returned by the renderer; metrics never import DJ or rendering packages.
+
+```text
+BPM delta                 = abs(native_bpm_A - native_bpm_B)
+stretch percent per stem  = 100 * (session_bpm / native_bpm - 1)  # signed
+block RMS[k]              = sqrt(mean(x[k]^2))                  # channel power combined
+onset[k]                  = max(0, RMS[k] - RMS[k-1])
+correlation(lag)          = dot(centered_onset_A, shifted_centered_onset_B)
+                            / (norm(A) * norm(B))              # common samples only
+alignment error ms        = abs(argmax_lag correlation) * hop_samples * 1000 / sample_rate
+energy discontinuity dB   = abs(20 * log10(RMS_last / RMS_first))
+success rate              = rendered_attempts / all_attempts
+failure rate              = failed_attempts / all_attempts
+analysis failure rate     = failed / (completed + failed)       # excludes skipped jobs
+```
+
+Onset hop is `round(sample_rate * evaluation.onset_hop_ms / 1000)`, at least one sample.
+Lag is bounded by `alignment_max_lag_ms`, less than half a session beat, and less than half
+the available envelope. Exact correlation ties prefer the smallest absolute lag. Too-short,
+silent/constant, or weakly correlated overlaps produce null error plus a named reason.
+This is a measured average phase offset at block resolution; it is not a drift measure,
+downbeat detector, or calibrated perceptual score. Offsets outside the search range can be
+unavailable. A block-RMS rise measures amplitude attacks and can miss constant-power timbral
+onsets. It was chosen as a small, independent numpy measurement rather than reusing planned
+beat timestamps, which would trivially report zero after alignment.
+
+Energy uses equal first/last `evaluation.energy_window_seconds` windows inside the mixed
+fade, capped at half the fade. RMS has a `silence_floor_dbfs` floor. It measures endpoint
+loudness change, not all mid-fade dips/peaks, harmonic clashes, or perceptual loudness.
+Region stability is each chosen M3 score for D; it is stored evidence, not remeasured DSP.
+
+Planning latency includes retrieval/ranking/planning over already-loaded features. Render
+latency includes source decoding, stretching, mixing and WAV publication. Measurement has
+its own timer. Candidate DB loading, hashing, metric persistence and blind export are excluded;
+these are stage timings, not end-to-end service latency. Reports retain every raw attempt and
+min/p50/p95/p99/max with measured and missing counts, plus failures by reason. No-plan attempts
+live in the report because the existing transition schema requires a concrete plan and pair.
+
+Blind preferences are decoded through a separate X/Y codebook. At least
+`evaluation.minimum_listeners` complete ratings are required per pair. Listeners vote +1 for
+D, -1 for B, 0 for tie; each pair contributes the sign of its vote sum. Tied pairs are excluded
+from the exact two-sided test:
+`p = min(1, 2 * sum(comb(n, k), k=0..min(wins, losses)) / 2^n)`.
+No eligible non-tied pairs yields null p, not evidence of equality. Rating differences are
+descriptive distributions only. Tracks recur across pairs, so independence and generalization
+remain assumptions; a large listener count does not create more independent audio pairs.

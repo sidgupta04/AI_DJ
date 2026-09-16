@@ -30,8 +30,9 @@ ingestion:
 # --- Offline analysis ---------------------------------------------------------------------
 analysis:
   # Bumping version invalidates stored features and requires deliberate reprocessing.
-  # 2 = M3 energy curve + stable regions. M2 (version 1) rows are reprocessed automatically.
-  version: 2
+  # 4 = 0.225 confidence acceptance floor after real-audio click-grid validation.
+  # COMPLETE version 1/2/3 rows are reprocessed automatically.
+  version: 4
   # 22.05 kHz mono: beat precision is set by the onset-envelope frame rate, not the sample
   # rate, so this halves analysis cost. Confirmed by the M2 22.05 vs 44.1 kHz experiment.
   sample_rate: 22050
@@ -45,10 +46,9 @@ analysis:
   # override a grid whose onset lock is better, even if that grid is farther
   # from 124.
   start_bpm: 124.0
-  # Tempos below this are treated as half-time of a house pulse; the natural tempo is
-  # rejected if that half-time grid scores better than the doubled one.
+  # Inclusive candidate band: score only eligible octaves; selected grids still pass all gates.
   min_bpm: 80.0
-  # Tempos above this are treated as double-time. 4/4 house/techno rarely exceeds this.
+  # Exclude faster candidates before selecting; an eligible half-time alternative can win.
   max_bpm: 180.0
   # IBI statistics need a few bars; fewer beats than this is not a usable grid.
   min_beats: 16
@@ -60,10 +60,10 @@ analysis:
   # resampled noise that just clears this floor.
   min_onset_contrast: 0.15
   # Floor on the heuristic quality score (regularity * contrast), not a
-  # probability. Separate gates can both barely pass (44.1 kHz white noise
-  # decoded to 22.05 kHz: contrast 0.16, CV 0.08, product 0.05). Click tracks
-  # sit above 0.6.
-  min_confidence: 0.25
+  # probability. Real-audio click-grid review accepted locked Super Bass (0.236)
+  # but rejected audibly drifting Levels (0.181) and Shiver (0.101). Separate
+  # gates still reject resampled noise that just clears the onset floor.
+  min_confidence: 0.225
   # Search +/- this many fine-envelope frames around each coarse beat. 2 frames at
   # 256/22050 is +/- 23 ms, one coarse frame, well inside a beat at house tempo.
   refine_search_radius_frames: 2
@@ -119,7 +119,7 @@ retrieval:
 # --- Candidate ranking --------------------------------------------------------------------
 ranking:
   # Chosen priors, not learned weights: tempo > energy >> analysis confidence.
-  # Swept in M6 and checked against human ratings there. Must sum to 1.
+  # M6 synthetic results do not justify retuning; library/listener validation remains. Sum to 1.
   weight_tempo: 0.60
   weight_energy: 0.35
   weight_quality: 0.05
@@ -171,3 +171,10 @@ evaluation:
   excerpt_seconds: 15.0
   # 60 paired comparisons make a sign test meaningful for a ~65/35 preference split.
   pair_count: 60
+  seed: 20260915                 # fixed seed for repeatable selection and blinded ordering
+  onset_hop_ms: 5.0             # RMS-rise onset envelope resolution; no beat-grid arithmetic
+  alignment_max_lag_ms: 200.0   # bounded lag search, also capped below half a session beat
+  alignment_min_correlation: 0.1 # report weak overlap evidence as unavailable, not zero error
+  energy_window_seconds: 1.0   # compare local RMS at the beginning and end of the fade
+  silence_floor_dbfs: -90.0    # finite energy floor and silence rejection for alignment
+  minimum_listeners: 3         # owner follow-up; independent votes are aggregated by track pair

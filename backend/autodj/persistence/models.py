@@ -218,7 +218,7 @@ class TransitionStatus(StrEnum):
 class Transition(Base):
     """A planned A→B mix and, when rendering succeeds, the WAV that realises it.
 
-    Metric columns (alignment error, energy discontinuity, latency) land in M6.
+    Nullable evaluation columns preserve historical M5 rows without fabricated measurements.
     """
 
     __tablename__ = "transitions"
@@ -265,6 +265,19 @@ class Transition(Base):
     )
     failure_reason: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    evaluation: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    strategy: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bpm_delta: Mapped[float | None] = mapped_column(Double, nullable=True)
+    stretch_percent_a: Mapped[float | None] = mapped_column(Double, nullable=True)
+    stretch_percent_b: Mapped[float | None] = mapped_column(Double, nullable=True)
+    alignment_error_ms: Mapped[float | None] = mapped_column(Double, nullable=True)
+    alignment_correlation: Mapped[float | None] = mapped_column(Double, nullable=True)
+    energy_discontinuity_db: Mapped[float | None] = mapped_column(Double, nullable=True)
+    region_stability_a: Mapped[float | None] = mapped_column(Double, nullable=True)
+    region_stability_b: Mapped[float | None] = mapped_column(Double, nullable=True)
+    planning_seconds: Mapped[float | None] = mapped_column(Double, nullable=True)
+    render_seconds: Mapped[float | None] = mapped_column(Double, nullable=True)
+    measurement_seconds: Mapped[float | None] = mapped_column(Double, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

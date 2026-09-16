@@ -131,9 +131,11 @@ Status moves `PENDING` → `PROCESSING` → `COMPLETE` or `FAILED`. `PROCESSING`
 before the decode so a crash mid-file is retried on the next run: the default queue is
 PENDING, PROCESSING, and stale-version COMPLETE. A row left in PROCESSING is selected and
 analysed again without `--reanalyze`. `COMPLETE` rows whose `analysis_version` does not
-match the current config are reprocessed without `--reanalyze`. M3 bumped
-`analysis.version` from 1 to 2 (energy curve + regions); every M2-complete row is therefore
-stale until it is analysed again. `--reanalyze` also redoes current COMPLETE and FAILED
+match the current config are reprocessed without `--reanalyze`. M3 introduced version 2
+(energy curve + regions), the approved in-range octave policy introduced version 3, and M6's
+real-audio click-grid confidence calibration introduces version 4. Completed version 1/2/3
+rows are stale until analysed again and excluded from current-version selection. `--reanalyze`
+also redoes current COMPLETE and FAILED
 rows. Ingestion of a changed file resets the analysis columns, deletes the
 `track_analysis` row, and returns the track to `PENDING`.
 
@@ -172,6 +174,19 @@ on the row so M6 can attach metrics without another schema for the mix itself.
 I/O boundary the way `audio.decode` is the analysis I/O boundary. Source files stay
 read-only.
 
+## Evaluation path (M6)
+
+`EvaluationService` composes pure A–D selection, the existing renderer, and pure numpy metrics.
+The renderer can optionally return its actual pre-gain overlap stems and accept fixed time
+offsets for edge baselines. Default M5 behavior is unchanged; DSP measurements run only in the
+offline evaluation path. `evaluation_tools` writes seeded comparisons, provenance snapshots,
+blind excerpts and a separate codebook; it also validates owner-supplied ratings.
+
+Nullable metric columns and an evaluation JSON payload extend `transitions`; historical M5
+rows remain unmeasured. No-plan failures are included in report denominators without inventing
+a plan to satisfy the transition table's required foreign keys. Source audio remains read-only.
+No session loop, session endpoints, UI or lookahead were introduced.
+
 ## Scaling
 
 The working library is about 150–200 tracks. At that size, PostgreSQL filters on analysis
@@ -190,7 +205,7 @@ milestone. See `docs/roadmap.md`.
 - M3 musical features and stable regions — complete
 - M4 candidate selection and transition planning — complete
 - M5 tempo/beat sync and audio rendering — complete
-- M6 evaluation and algorithm improvements — not started
+- M6 evaluation tooling and synthetic experiments — complete; owner listening follow-up pending
 - M7 DJ session runtime and demo application — not started
 - M8 reliability, performance, and polish — not started
 

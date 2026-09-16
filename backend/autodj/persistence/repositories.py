@@ -9,6 +9,7 @@ remain two tracks.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
@@ -314,6 +315,26 @@ class TransitionRepository:
 
     def get_by_id(self, transition_id: int) -> Transition | None:
         return self._session.get(Transition, transition_id)
+
+    def attach_evaluation(self, row: Transition, metrics: Mapping[str, Any]) -> None:
+        """Attach measured values plus provenance/reasons; no pure-layer imports."""
+        for name in (
+            "strategy",
+            "bpm_delta",
+            "stretch_percent_a",
+            "stretch_percent_b",
+            "alignment_error_ms",
+            "alignment_correlation",
+            "energy_discontinuity_db",
+            "region_stability_a",
+            "region_stability_b",
+            "planning_seconds",
+            "render_seconds",
+            "measurement_seconds",
+        ):
+            setattr(row, name, metrics.get(name))
+        row.evaluation = dict(metrics)
+        self._session.flush()
 
     def save(
         self,
