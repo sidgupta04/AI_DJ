@@ -118,7 +118,7 @@ retrieval:
 # --- Candidate ranking --------------------------------------------------------------------
 ranking:
   # Chosen priors, not learned weights: tempo > energy >> analysis confidence.
-  # Swept in M6 and checked against human ratings there. Must sum to 1.
+  # M6 synthetic results do not justify retuning; library/listener validation remains. Sum to 1.
   weight_tempo: 0.60
   weight_energy: 0.35
   weight_quality: 0.05
@@ -170,3 +170,10 @@ evaluation:
   excerpt_seconds: 15.0
   # 60 paired comparisons make a sign test meaningful for a ~65/35 preference split.
   pair_count: 60
+  seed: 20260915                 # fixed seed for repeatable selection and blinded ordering
+  onset_hop_ms: 5.0             # RMS-rise onset envelope resolution; no beat-grid arithmetic
+  alignment_max_lag_ms: 200.0   # bounded lag search, also capped below half a session beat
+  alignment_min_correlation: 0.1 # report weak overlap evidence as unavailable, not zero error
+  energy_window_seconds: 1.0   # compare local RMS at the beginning and end of the fade
+  silence_floor_dbfs: -90.0    # finite energy floor and silence rejection for alignment
+  minimum_listeners: 3         # owner follow-up; independent votes are aggregated by track pair

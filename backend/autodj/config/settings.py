@@ -223,6 +223,13 @@ class SessionSettings(ConfigSection):
 class EvaluationSettings(ConfigSection):
     excerpt_seconds: float = Field(gt=0.0)
     pair_count: int = Field(ge=1)
+    seed: int = Field(ge=0)
+    onset_hop_ms: float = Field(gt=0.0)
+    alignment_max_lag_ms: float = Field(gt=0.0)
+    alignment_min_correlation: Fraction
+    energy_window_seconds: float = Field(gt=0.0)
+    silence_floor_dbfs: float = Field(lt=0.0)
+    minimum_listeners: int = Field(ge=1)
 
 
 class Settings(BaseSettings):
