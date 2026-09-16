@@ -6,10 +6,14 @@ import numpy as np
 import pytest
 from fixtures.audio import click_track
 
+import autodj.audio.beats as beats_module
 from autodj.audio.beats import (
     AnalysisFailure,
     BeatTrackingError,
+    _choose_octave,
+    _evaluate_grid,
     _GridCandidate,
+    _octave_grids,
     _preferred_octave,
     analyze_beats,
     refine_beat_times,
@@ -99,15 +103,58 @@ def test_a_124_click_track_is_not_reported_as_half_or_double_time(settings: Sett
     assert result.tempo_octave_factor == pytest.approx(1.0)
 
 
-def test_a_true_half_time_pulse_is_rejected_as_out_of_range(settings: Settings) -> None:
-    """A 62 BPM pulse scores best at 62, which is below min_bpm. Do not invent 124."""
+def test_a_62_bpm_pulse_tries_124_but_still_must_pass_quality_gates(settings: Settings) -> None:
+    """Version 3 permits the 124 alternative; it does not waive onset/quality validation."""
     samples, _truth = click_track(62.0, seconds=16.0, sample_rate=settings.analysis.sample_rate)
 
+    result = analyze_beats(samples, **_kwargs(settings))  # type: ignore[arg-type]
+    assert result.native_bpm == pytest.approx(124.0, abs=1.0)
+    assert result.confidence >= settings.analysis.min_confidence
+    assert result.onset_contrast >= settings.analysis.min_onset_contrast
+    assert result.ibi_cv <= settings.analysis.max_ibi_cv
+    # Selecting an eligible octave does not bypass the final confidence gate.
     with pytest.raises(BeatTrackingError) as error:
-        analyze_beats(samples, **_kwargs(settings))  # type: ignore[arg-type]
+        analyze_beats(samples, **_kwargs(settings, min_confidence=1.0))  # type: ignore[arg-type]
+    assert error.value.failure is AnalysisFailure.LOW_CONFIDENCE
 
+
+@pytest.mark.parametrize("bpm", [123.05, 152.0])
+@pytest.mark.parametrize("raw_factor", [1.0, 2.0])
+def test_in_range_octave_wins_despite_stronger_double_time(bpm: float, raw_factor: float) -> None:
+    """Real-library regression shapes: 123/246 and 152/304, with genuine onset scoring."""
+    rate = 1000
+    pulses = np.arange(1.0, 20.0, 60 / (2 * bpm))
+    onset = np.zeros(21 * rate)
+    onset[np.rint(pulses * rate).astype(int)] = np.resize([1.0, 0.8], pulses.size)
+    raw = pulses[::2] if raw_factor == 1 else pulses
+    candidates = [
+        _evaluate_grid(times, onset, sample_rate=rate, hop_length=1, octave_factor=factor)
+        for factor, times in _octave_grids(raw)
+    ]
+    global_best = _preferred_octave(candidates, start_bpm=124)
+    assert global_best.bpm == pytest.approx(2 * bpm)
+    chosen = _choose_octave(
+        raw, onset, sample_rate=rate, hop_length=1, start_bpm=124, min_bpm=80, max_bpm=180
+    )
+    assert chosen.bpm == pytest.approx(bpm)
+    assert chosen.score < global_best.score
+    assert chosen.octave_factor == pytest.approx(1 / raw_factor)
+
+
+def test_no_in_range_octave_still_fails() -> None:
+    raw = np.arange(0.0, 20.0, 2.0)  # 15, 30 and 60 BPM are all outside the accepted band.
+    with pytest.raises(BeatTrackingError) as error:
+        _choose_octave(
+            raw,
+            np.ones(21000),
+            sample_rate=1000,
+            hop_length=1,
+            start_bpm=124,
+            min_bpm=80,
+            max_bpm=180,
+        )
     assert error.value.failure is AnalysisFailure.TEMPO_OUT_OF_RANGE
-    assert error.value.as_dict()["detail"]
+    assert "no in-range octave candidate" in error.value.detail
 
 
 def test_white_noise_fails_with_a_structured_reason(settings: Settings) -> None:
@@ -179,3 +226,52 @@ def test_confidence_is_regularity_times_onset_contrast(settings: Settings) -> No
     regularity = max(0.0, 1.0 - result.ibi_cv / settings.analysis.max_ibi_cv)
     assert result.confidence == pytest.approx(regularity * max(0.0, result.onset_contrast))
     assert result.confidence == pytest.approx(result.onset_contrast, abs=0.15)
+
+
+@pytest.mark.parametrize(
+    ("onset_contrast", "accepted"),
+    [(0.28125, True), (0.28, False)],
+)
+def test_confidence_threshold_accepts_the_0225_boundary_only(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, onset_contrast: float, accepted: bool
+) -> None:
+    """Keep the formula fixed while guarding the approved acceptance-floor boundary."""
+    beats = np.arange(16, dtype=np.float64) * 0.5
+    candidate = _GridCandidate(
+        times=beats,
+        bpm=120.0,
+        octave_factor=1.0,
+        onset_contrast=1.0,
+        mean_onbeat=1.0,
+        ibi_cv=0.0,
+    )
+
+    monkeypatch.setattr(beats_module.librosa.onset, "onset_strength", lambda **_kwargs: np.ones(32))
+    monkeypatch.setattr(
+        beats_module.librosa.beat,
+        "beat_track",
+        lambda **_kwargs: (120.0, beats),
+    )
+    monkeypatch.setattr(beats_module, "_choose_octave", lambda *_args, **_kwargs: candidate)
+    monkeypatch.setattr(beats_module, "refine_beat_times", lambda *_args, **_kwargs: beats)
+    monkeypatch.setattr(beats_module, "_bpm_from_times", lambda _beats: 120.0)
+    monkeypatch.setattr(beats_module, "_ibi_cv", lambda _beats: 0.024)
+    monkeypatch.setattr(
+        beats_module,
+        "_onset_alignment",
+        lambda *_args, **_kwargs: (onset_contrast, 1.0),
+    )
+
+    if accepted:
+        result = analyze_beats(
+            np.zeros(settings.analysis.sample_rate, dtype=np.float32),
+            **_kwargs(settings),  # type: ignore[arg-type]
+        )
+        assert result.confidence == pytest.approx(0.225)
+    else:
+        with pytest.raises(BeatTrackingError) as error:
+            analyze_beats(
+                np.zeros(settings.analysis.sample_rate, dtype=np.float32),
+                **_kwargs(settings),  # type: ignore[arg-type]
+            )
+        assert error.value.failure is AnalysisFailure.LOW_CONFIDENCE

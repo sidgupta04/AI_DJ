@@ -164,7 +164,7 @@ def test_stale_analysis_version_is_reprocessed_without_reanalyze(
     with session_factory() as session:
         track = TrackRepository(session).get_by_path("Jamie xx - Gosh.wav")
         assert track is not None
-        track.analysis_version = 0
+        track.analysis_version = 2
         session.commit()
 
     report = analysis.analyze()

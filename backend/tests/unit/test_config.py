@@ -24,9 +24,9 @@ def test_documented_defaults_are_loaded(settings: Settings) -> None:
     assert settings.analysis.min_beats == 16
     assert settings.analysis.max_ibi_cv == pytest.approx(0.12)
     assert settings.analysis.min_onset_contrast == pytest.approx(0.15)
-    assert settings.analysis.min_confidence == pytest.approx(0.25)
+    assert settings.analysis.min_confidence == pytest.approx(0.225)
     assert settings.analysis.refine_search_radius_frames == 2
-    assert settings.analysis.version == 2
+    assert settings.analysis.version == 4
     assert settings.energy.alpha == pytest.approx(0.6)
     assert settings.energy.aggregation == "median"
     assert settings.energy.curve_hz == pytest.approx(10.0)
