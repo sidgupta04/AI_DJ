@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from autodj import __version__
 from autodj.api.routes_health import router as health_router
+from autodj.api.routes_sessions import router as sessions_router
 from autodj.config.settings import Settings, get_settings
 from autodj.logging_config import configure_logging
 
@@ -21,4 +22,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = resolved
     app.include_router(health_router)
+    app.include_router(sessions_router)
     return app
