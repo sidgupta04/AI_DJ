@@ -19,7 +19,7 @@ durable context. A fresh agent should not need prior chat transcripts.
 | M4 | Candidate selection and transition planning | complete |
 | M5 | Tempo/beat synchronization and audio rendering | complete |
 | M6 | Evaluation and algorithm improvements | complete (tooling + synthetic experiments; owner listening follow-up) |
-| M7 | DJ session runtime and demo application | not started |
+| M7 | DJ session runtime and demo application | complete (pre-rendered session, CLI, API, React demo) |
 | M8 | Reliability, performance, and production polish | not started |
 
 ```mermaid

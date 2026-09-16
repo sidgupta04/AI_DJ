@@ -88,6 +88,7 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | `render.output_bit_depth` | 16 | 16-bit PCM WAV plays everywhere, no second lossy encode | hypothesis |
 | `render.peak_ceiling_dbfs` | -1.0 | Headroom target; peaks above it are flagged. Peaks above unity are scaled into range so int16 does not wrap | hypothesis |
 | `session.default_length` | 6 | Enough transitions to judge a sequence, small enough to render quickly | hypothesis |
+| `session.max_length` | 12 | Bounds in-memory pre-render work in the local M7 demo; default length must not exceed it | operational limit |
 | `session.selection_strategy` | greedy | Explainable baseline; lookahead is an M6 stretch only if greedy fails | hypothesis |
 | `evaluation.excerpt_seconds` | 15.0 | Context either side of a transition for blind rating | hypothesis |
 | `evaluation.pair_count` | 60 | Makes a paired sign test meaningful for a ~65/35 split | hypothesis |
@@ -98,6 +99,9 @@ Status legend: `hypothesis` (chosen by reasoning), `measured` (backed by a recor
 | `evaluation.energy_window_seconds` | 1.0 | Local RMS at either end of the mixed overlap; shortened equally to avoid overlapping windows | hypothesis |
 | `evaluation.silence_floor_dbfs` | -90.0 | Finite RMS floor and rejection of effectively silent onset envelopes | hypothesis |
 | `evaluation.minimum_listeners` | 3 | Required ratings per pair before inclusion in the preference sign test | protocol |
+
+M7 sessions support `greedy` only; other strategy settings are rejected explicitly. Sessions
+always exclude already-played tracks, regardless of the independent retrieval repeat setting.
 
 Evaluation instrumentation does not alter stored track features. The approved octave-policy
 and confidence-acceptance changes do: `analysis.version` is now 4 and version 1/2/3 analyses
