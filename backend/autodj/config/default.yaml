@@ -30,8 +30,9 @@ ingestion:
 # --- Offline analysis ---------------------------------------------------------------------
 analysis:
   # Bumping version invalidates stored features and requires deliberate reprocessing.
-  # 2 = M3 energy curve + stable regions. M2 (version 1) rows are reprocessed automatically.
-  version: 2
+  # 4 = 0.225 confidence acceptance floor after real-audio click-grid validation.
+  # COMPLETE version 1/2/3 rows are reprocessed automatically.
+  version: 4
   # 22.05 kHz mono: beat precision is set by the onset-envelope frame rate, not the sample
   # rate, so this halves analysis cost. Confirmed by the M2 22.05 vs 44.1 kHz experiment.
   sample_rate: 22050
@@ -59,10 +60,10 @@ analysis:
   # resampled noise that just clears this floor.
   min_onset_contrast: 0.15
   # Floor on the heuristic quality score (regularity * contrast), not a
-  # probability. Separate gates can both barely pass (44.1 kHz white noise
-  # decoded to 22.05 kHz: contrast 0.16, CV 0.08, product 0.05). Click tracks
-  # sit above 0.6.
-  min_confidence: 0.25
+  # probability. Real-audio click-grid review accepted locked Super Bass (0.236)
+  # but rejected audibly drifting Levels (0.181) and Shiver (0.101). Separate
+  # gates still reject resampled noise that just clears the onset floor.
+  min_confidence: 0.225
   # Search +/- this many fine-envelope frames around each coarse beat. 2 frames at
   # 256/22050 is +/- 23 ms, one coarse frame, well inside a beat at house tempo.
   refine_search_radius_frames: 2

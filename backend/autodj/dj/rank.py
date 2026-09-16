@@ -73,7 +73,7 @@ def _quality_cost(analysis_confidence: float) -> float:
     """Monotonic penalty for lower-confidence analysis.
 
     ``1 - confidence``: a track with confidence 0.6 costs 0.4.  The maximum
-    depends on ``analysis.min_confidence`` (default 0.25 → max cost 0.75), not
+    depends on ``analysis.min_confidence`` (default 0.225 → max cost 0.775), not
     on any calibrated probability.
     """
     return 1.0 - analysis_confidence
